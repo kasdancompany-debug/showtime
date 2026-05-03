@@ -1,0 +1,1350 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Expand, Eye, EyeOff, MoreHorizontal, X } from "lucide-react";
+
+import { FilmGrain } from "@/components/cinematic/film-grain";
+import {
+  CountdownMedallion,
+  FilmReelDivider,
+  StudioBadge,
+  TheatreCurtainBackground,
+} from "@/components/kasdan";
+import { MarqueeLightBar } from "@/components/screen/marquee-light-bar";
+import { ScreenTitleCardFrame } from "@/components/screen/screen-title-card-frame";
+import { ScreenVideo } from "@/components/screen/screen-video";
+import { useEventRoomPlaybackSync } from "@/hooks/use-event-room-playback-sync";
+import { useScreenChannelStatus } from "@/hooks/use-screen-channel-status";
+import { useScreenSurfaceHeartbeat } from "@/hooks/use-screen-surface-heartbeat";
+import { useAudienceVoteIngest, useVoteStateBroadcaster } from "@/hooks/use-room-vote-sync";
+import { broadcastEventSync } from "@/lib/realtime/event-sync";
+import { useNodePlaybackSrc } from "@/hooks/use-node-playback-src";
+import { kcCopy } from "@/lib/design/kasdan-hollywood-tokens";
+import { getEffectiveWinner, isAtEndingNode, needsHostChoice } from "@/lib/story-engine/engine";
+import { useMockEventStore } from "@/lib/store/mock-event-store";
+import { selectVoteDisplayNode } from "@/lib/store/presentation";
+import { getNode } from "@/lib/story-engine/graph";
+import type { VoteChoice } from "@/types";
+import { cn } from "@/lib/utils";
+
+type DisplayMode =
+  | "pre_show"
+  | "segment"
+  | "vote_countdown"
+  | "vote_open"
+  | "vote_closed"
+  | "reveal"
+  | "fin"
+  | "curtain";
+
+function deriveMode(
+  eventStarted: boolean,
+  showEnded: boolean,
+  votePhase: string,
+  enginePhase: string,
+  isEnding: boolean,
+  endingComplete: boolean,
+): DisplayMode {
+  if (showEnded) return "curtain";
+  if (!eventStarted) return "pre_show";
+  if (votePhase === "reveal") return "reveal";
+  if (votePhase === "countdown") return "vote_countdown";
+  if (votePhase === "open") return "vote_open";
+  if (votePhase === "closed") return "vote_closed";
+  if (votePhase === "idle" && isEnding && enginePhase === "idle" && endingComplete) return "fin";
+  return "segment";
+}
+
+export function ScreenDisplay() {
+  const reduceMotion = useReducedMotion();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const eventId = useMockEventStore((s) => s.eventId);
+  const { sendPlaybackTelemetry, client: roomSyncClient } = useEventRoomPlaybackSync("screen");
+  const { status: channelStatus, usesSupabase } = useScreenChannelStatus();
+  useScreenSurfaceHeartbeat(eventId);
+  useVoteStateBroadcaster();
+  useAudienceVoteIngest();
+
+  const graph = useMockEventStore((s) => s.graph);
+  const engine = useMockEventStore((s) => s.engine);
+  const eventTitle = useMockEventStore((s) => s.eventTitle);
+  const eventCode = useMockEventStore((s) => s.eventCode);
+  const eventStarted = useMockEventStore((s) => s.eventStarted);
+  const showEnded = useMockEventStore((s) => s.showEnded);
+  const playback = useMockEventStore((s) => s.playback);
+  const votePhase = useMockEventStore((s) => s.votePhase);
+  const countdownSec = useMockEventStore((s) => s.countdownSec);
+  const countdownPresetSec = useMockEventStore((s) => s.countdownPresetSec);
+  const voteEndsAt = useMockEventStore((s) => s.voteEndsAt);
+  const pollDurationSec = useMockEventStore((s) => s.pollDurationSec);
+  const votesA = useMockEventStore((s) => s.votesA);
+  const votesB = useMockEventStore((s) => s.votesB);
+  const revealedWinner = useMockEventStore((s) => s.revealedWinner);
+  const tickCountdown = useMockEventStore((s) => s.tickCountdown);
+  const pauseSegment = useMockEventStore((s) => s.pauseSegment);
+  const startEvent = useMockEventStore((s) => s.startEvent);
+  const playSegment = useMockEventStore((s) => s.playSegment);
+  const currentNodeId = useMockEventStore((s) => s.currentNodeId);
+  const node = useMemo(() => getNode(graph, currentNodeId), [graph, currentNodeId]);
+  const { src: videoSrc, status: playbackSrcStatus } = useNodePlaybackSrc(node);
+  const voteNode = useMemo(() => selectVoteDisplayNode(engine), [engine]);
+  const endingNode = useMemo(() => isAtEndingNode(engine), [engine]);
+
+  const [endingPlayedOut, setEndingPlayedOut] = useState(false);
+  const [choiceIncoming, setChoiceIncoming] = useState(false);
+  const [videoLoadFailed, setVideoLoadFailed] = useState(false);
+  const [questionPrimed, setQuestionPrimed] = useState<{
+    question: string;
+    labelA: string;
+    labelB: string;
+  } | null>(null);
+  const questionOpenTimerRef = useRef<number | null>(null);
+  const autoRevealKeyRef = useRef<string | null>(null);
+  const projectionErrorBroadcastRef = useRef<string | null>(null);
+
+  const [videoFit, setVideoFit] = useState<"contain" | "cover">(() => {
+    if (typeof window === "undefined") return "contain";
+    try {
+      return sessionStorage.getItem("showtime-screen-video-fit") === "cover" ? "cover" : "contain";
+    } catch {
+      return "contain";
+    }
+  });
+
+  const [testDisplay, setTestDisplay] = useState(false);
+  const [dockOpen, setDockOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("test") === "1") sessionStorage.setItem("showtime-screen-test", "1");
+      setTestDisplay(sessionStorage.getItem("showtime-screen-test") === "1");
+    } catch {
+      setTestDisplay(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setEndingPlayedOut(false);
+    setChoiceIncoming(false);
+    setVideoLoadFailed(false);
+    setQuestionPrimed(null);
+    projectionErrorBroadcastRef.current = null;
+    if (questionOpenTimerRef.current) {
+      window.clearTimeout(questionOpenTimerRef.current);
+      questionOpenTimerRef.current = null;
+    }
+  }, [currentNodeId]);
+
+  useEffect(() => {
+    if (votePhase !== "idle") setChoiceIncoming(false);
+  }, [votePhase]);
+
+  useEffect(() => {
+    if (playbackSrcStatus === "missing") setVideoLoadFailed(true);
+  }, [playbackSrcStatus]);
+
+  useEffect(() => {
+    if (!eventStarted || showEnded || !node?.id) return;
+    if (videoLoadFailed) {
+      if (projectionErrorBroadcastRef.current === `err:${node.id}`) return;
+      projectionErrorBroadcastRef.current = `err:${node.id}`;
+      const msg = `Screen projection paused — could not play “${node.title}”. Fix media on the projector browser or reload the beat from /host.`;
+      void broadcastEventSync(roomSyncClient, eventId, {
+        type: "projection_alert",
+        kind: "video_error",
+        message: msg,
+        nodeId: node.id,
+      });
+      return;
+    }
+    if (
+      playbackSrcStatus === "ready" &&
+      projectionErrorBroadcastRef.current?.startsWith("err:") &&
+      projectionErrorBroadcastRef.current.endsWith(node.id)
+    ) {
+      projectionErrorBroadcastRef.current = null;
+      void broadcastEventSync(roomSyncClient, eventId, {
+        type: "projection_alert",
+        kind: "video_recovered",
+        message: `Screen projection resumed on “${node.title}”.`,
+        nodeId: node.id,
+      });
+    }
+  }, [
+    videoLoadFailed,
+    eventStarted,
+    showEnded,
+    node,
+    roomSyncClient,
+    eventId,
+    playbackSrcStatus,
+  ]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Escape") {
+        setDockOpen(false);
+        return;
+      }
+      if (e.code === "Backquote" && !e.repeat) {
+        e.preventDefault();
+        setDockOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (questionOpenTimerRef.current) window.clearTimeout(questionOpenTimerRef.current);
+    };
+  }, []);
+
+  const hasPlayableMedia = Boolean(videoSrc);
+  const endingComplete = !endingNode || endingPlayedOut || !hasPlayableMedia;
+
+  const mode = deriveMode(eventStarted, showEnded, votePhase, engine.phase, endingNode, endingComplete);
+
+  const total = votesA + votesB;
+  const pctA = total ? (votesA / total) * 100 : 50;
+  const pctB = total ? (votesB / total) * 100 : 50;
+
+  const winnerChoice = votePhase === "reveal" ? revealedWinner ?? getEffectiveWinner(engine) : null;
+
+  useEffect(() => {
+    if (votePhase !== "countdown") return;
+    const id = window.setInterval(() => tickCountdown(), 1000);
+    return () => window.clearInterval(id);
+  }, [votePhase, tickCountdown]);
+
+  useEffect(() => {
+    if (votePhase !== "open") return;
+    const id = window.setInterval(() => {
+      const st = useMockEventStore.getState();
+      if (st.votePhase !== "open" || !st.voteEndsAt) return;
+      if (Date.now() < st.voteEndsAt) return;
+      st.closeVote();
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [votePhase]);
+
+  useEffect(() => {
+    if (engine.phase === "open" || engine.phase === "countdown") {
+      autoRevealKeyRef.current = null;
+    }
+  }, [engine.phase]);
+
+  useEffect(() => {
+    if (engine.phase !== "awaiting_reveal" || !engine.winner || !engine.voteNodeId) return;
+    if (needsHostChoice(engine)) return;
+    const key = `${engine.voteNodeId}:${engine.winner}`;
+    if (autoRevealKeyRef.current === key) return;
+    autoRevealKeyRef.current = key;
+
+    const tReveal = window.setTimeout(() => {
+      const st = useMockEventStore.getState();
+      if (st.engine.phase !== "awaiting_reveal") return;
+      st.revealWinnerToRoom();
+    }, 900);
+    const tAdvance = window.setTimeout(() => {
+      const st = useMockEventStore.getState();
+      if (st.engine.phase !== "revealed") return;
+      st.advanceToWinningBranch();
+    }, 900 + 10_000);
+
+    return () => {
+      window.clearTimeout(tReveal);
+      window.clearTimeout(tAdvance);
+    };
+  }, [engine.phase, engine.winner, engine.voteNodeId]); // eslint-disable-line react-hooks/exhaustive-deps -- reveal timers only
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (votePhase !== "open") return;
+    const id = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [votePhase]);
+
+  const secondsLeft =
+    votePhase === "open" && voteEndsAt ? Math.max(0, Math.ceil((voteEndsAt - now) / 1000)) : null;
+  /** Ring drains toward zero using the same poll length as the operator desk. */
+  const ringMaxSec = Math.max(1, pollDurationSec);
+  const ringFrac =
+    votePhase === "open" && secondsLeft !== null
+      ? Math.min(1, Math.max(0, secondsLeft / ringMaxSec))
+      : 0;
+
+  const [hideUiWhilePlaying, setHideUiWhilePlaying] = useState(false);
+  /** True while this page’s root container is the browser fullscreen element — room chrome hidden. */
+  const [programFullscreen, setProgramFullscreen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("showtime-screen-cinema") === "1") setHideUiWhilePlaying(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncProgramFullscreen = () => {
+      const root = containerRef.current;
+      const fs =
+        document.fullscreenElement ??
+        (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+        null;
+      setProgramFullscreen(Boolean(root && fs === root));
+    };
+    document.addEventListener("fullscreenchange", syncProgramFullscreen);
+    document.addEventListener("webkitfullscreenchange", syncProgramFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", syncProgramFullscreen);
+      document.removeEventListener("webkitfullscreenchange", syncProgramFullscreen);
+    };
+  }, []);
+
+  const toggleCinemaUi = useCallback(() => {
+    setHideUiWhilePlaying((h) => {
+      const next = !h;
+      try {
+        sessionStorage.setItem("showtime-screen-cinema", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const segmentFilmActive =
+    eventStarted &&
+    !showEnded &&
+    mode === "segment" &&
+    hasPlayableMedia &&
+    playbackSrcStatus === "ready" &&
+    !videoLoadFailed;
+
+  const voteOrRevealExperience =
+    mode === "vote_countdown" ||
+    mode === "vote_open" ||
+    mode === "vote_closed" ||
+    mode === "reveal";
+
+  /** Full-bleed room: real fullscreen, or cinema toggle through reel + ballot + reveal (not just during playback). */
+  const immersiveFilmShell =
+    programFullscreen ||
+    (hideUiWhilePlaying &&
+      eventStarted &&
+      !showEnded &&
+      (segmentFilmActive || Boolean(questionPrimed) || voteOrRevealExperience));
+
+  const minimalShell = immersiveFilmShell;
+
+  const voteUiFullBleed =
+    voteOrRevealExperience && eventStarted && !showEnded && (programFullscreen || hideUiWhilePlaying);
+
+  const handleVideoEnded = useCallback(() => {
+    pauseSegment();
+    if (endingNode) {
+      setEndingPlayedOut(true);
+      return;
+    }
+    const voteable = Boolean(node?.question && node.optionA && node.optionB);
+    if (voteable && node?.question && node.optionA && node.optionB) {
+      setQuestionPrimed({
+        question: node.question,
+        labelA: node.optionA.label,
+        labelB: node.optionB.label,
+      });
+      if (questionOpenTimerRef.current) window.clearTimeout(questionOpenTimerRef.current);
+      questionOpenTimerRef.current = window.setTimeout(() => {
+        questionOpenTimerRef.current = null;
+        const st = useMockEventStore.getState();
+        if (st.engine.phase === "idle") {
+          st.openVoteImmediate();
+        }
+        setQuestionPrimed(null);
+      }, 3200);
+      return;
+    }
+    if (node?.question) {
+      setChoiceIncoming(true);
+    }
+  }, [pauseSegment, endingNode, node]);
+
+  const enterProgramFullscreen = useCallback(() => {
+    if (!showEnded) {
+      startEvent();
+      playSegment();
+    }
+    const root = containerRef.current;
+    if (!root) return;
+    try {
+      const anyRoot = root as unknown as {
+        requestFullscreen?: () => Promise<void> | void;
+        webkitRequestFullscreen?: () => void;
+      };
+      if (typeof anyRoot.requestFullscreen === "function") {
+        void Promise.resolve(anyRoot.requestFullscreen()).catch(() => {});
+      } else if (typeof anyRoot.webkitRequestFullscreen === "function") {
+        anyRoot.webkitRequestFullscreen();
+      }
+    } catch {
+      /* ignored */
+    }
+  }, [playSegment, showEnded, startEvent]);
+
+  const syncBanner = useMemo(() => {
+    if (!usesSupabase || !eventStarted || showEnded) return null;
+    if (channelStatus === "connecting") return "reconnecting" as const;
+    if (channelStatus === "channel_error" || channelStatus === "timed_out" || channelStatus === "closed")
+      return "disconnected" as const;
+    return null;
+  }, [usesSupabase, eventStarted, showEnded, channelStatus]);
+
+  const segmentVideoLoading =
+    eventStarted &&
+    !showEnded &&
+    mode === "segment" &&
+    hasPlayableMedia &&
+    playbackSrcStatus === "loading" &&
+    !videoLoadFailed;
+
+  const toggleVideoFit = useCallback(() => {
+    setVideoFit((f) => {
+      const next = f === "contain" ? "cover" : "contain";
+      try {
+        sessionStorage.setItem("showtime-screen-video-fit", next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleTestDisplay = useCallback(() => {
+    setTestDisplay((v) => {
+      const next = !v;
+      try {
+        sessionStorage.setItem("showtime-screen-test", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const projectionPaused =
+    Boolean(videoSrc) &&
+    videoLoadFailed &&
+    mode === "segment" &&
+    eventStarted &&
+    !showEnded;
+
+  const cinemaPlaybackClean =
+    minimalShell &&
+    segmentFilmActive &&
+    !choiceIncoming &&
+    !questionPrimed &&
+    !projectionPaused;
+
+  const exitProgramFullscreen = useCallback(() => {
+    try {
+      if (document.fullscreenElement) void document.exitFullscreen?.();
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-black text-[var(--kc-cream)] before:pointer-events-none before:absolute before:inset-0 before:z-[1] before:bg-[radial-gradient(ellipse_85%_55%_at_50%_18%,oklch(0.22_0.035_48/0.55),transparent_62%)]",
+        voteUiFullBleed ? "overflow-x-hidden overflow-y-hidden" : "",
+        minimalShell && "before:hidden",
+        programFullscreen && "min-h-0",
+      )}
+    >
+      {syncBanner ? (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className={cn(
+            "relative z-[120] w-full px-6 py-5 text-center font-heading font-semibold leading-tight shadow-[0_8px_40px_oklch(0_0_0/0.45)]",
+            syncBanner === "disconnected"
+              ? "bg-[oklch(0.28_0.08_25/0.96)] text-[oklch(0.95_0.02_85)]"
+              : "bg-[oklch(0.35_0.09_75/0.96)] text-[oklch(0.98_0.02_95)]",
+          )}
+        >
+          <p className="text-[clamp(1.35rem,4vw,2.75rem)]">
+            {syncBanner === "disconnected"
+              ? "Projection link interrupted — reconnecting the live room…"
+              : "Reconnecting to the live room…"}
+          </p>
+          <p className="mt-3 font-mono text-[clamp(1rem,2.2vw,1.35rem)] uppercase tracking-[0.12em] opacity-90">
+            Audience phones may be affected until we are back.
+          </p>
+        </div>
+      ) : null}
+
+      {testDisplay ? (
+        <div className="relative z-[115] border-b-4 border-yellow-400 bg-yellow-500/20 py-4 text-center font-heading text-[clamp(1.35rem,3.5vw,2.25rem)] font-bold uppercase tracking-[0.18em] text-yellow-50">
+          Rehearsal — test display mode
+        </div>
+      ) : null}
+      {!minimalShell ? <TheatreCurtainBackground animated={!reduceMotion} /> : null}
+      {!minimalShell ? (
+        <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_140px_rgba(0,0,0,0.72)]" aria-hidden />
+      ) : null}
+      {!minimalShell ? <FilmGrain /> : null}
+
+      {!minimalShell ? (
+        <header className="relative z-[2] flex shrink-0 items-start justify-between gap-4 px-5 py-6 sm:px-10 md:items-center md:px-14 md:py-8 lg:px-20">
+          <div className="max-w-[26%] shrink-0 pt-0.5 md:max-w-none md:pt-0">
+            <StudioBadge className="scale-95 md:scale-100" showSeal href="/" />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col items-center px-1 text-center md:px-6">
+            <div className="w-full max-w-5xl border-y border-[oklch(0.72_0.05_78/0.15)] bg-[linear-gradient(180deg,oklch(0.12_0.03_48/0.35)_0%,transparent_45%,oklch(0.08_0.02_260/0.2)_100%)] px-4 py-5 md:px-10 md:py-7">
+              <p className="kc-screen-presents">{kcCopy.presents}</p>
+              <h1 className="mt-4 max-w-[95%] truncate px-1 font-heading text-[clamp(1.5rem,4.2vw,3.75rem)] font-normal leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_48px_oklch(0_0_0/0.45)]">
+                {eventTitle}
+              </h1>
+              <p className="mt-4 font-mono text-[clamp(0.62rem,1.4vw,0.78rem)] tracking-[0.18em] text-[var(--kc-cream-dim)]">
+                {kcCopy.tonightsFeature}
+              </p>
+              <p className="mt-3 max-w-3xl text-pretty font-mono text-[clamp(0.72rem,1.65vw,0.95rem)] leading-relaxed text-[var(--kc-cream-dim)]/80">
+                Same live story as <span className="text-[var(--kc-champagne)]/90">/host</span> in this tab — open the
+                room here for projection; operator can steer or recover anytime.
+              </p>
+            </div>
+          </div>
+          <span className="max-w-[26%] shrink-0 pt-0.5 text-right font-mono text-[clamp(0.58rem,1.2vw,0.72rem)] uppercase tracking-[0.16em] text-[var(--kc-cream-dim)] md:pt-0">
+            {eventCode}
+          </span>
+        </header>
+      ) : null}
+
+      <main
+        className={cn(
+          "relative z-[2] flex min-h-0 flex-1 flex-col overflow-hidden bg-black",
+          voteUiFullBleed && "min-h-0 overflow-hidden",
+        )}
+      >
+        {segmentVideoLoading ? (
+          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black">
+            <p className="max-w-[92vw] text-center font-heading text-[clamp(2.25rem,8vw,6rem)] font-normal leading-tight text-[var(--kc-cream)]">
+              Next reel loading…
+            </p>
+          </div>
+        ) : null}
+
+        {segmentFilmActive ? (
+          <div className="absolute inset-0 z-[5] flex min-h-0 flex-col bg-black">
+            <ScreenVideo
+              src={videoSrc!}
+              objectFit={videoFit}
+              sendPlaybackTelemetry={sendPlaybackTelemetry}
+              onEnded={handleVideoEnded}
+              onMediaError={() => setVideoLoadFailed(true)}
+              onMediaReady={() => setVideoLoadFailed(false)}
+              className="min-h-0 flex-1"
+            />
+            {choiceIncoming ? (
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-[max(1.5rem,4vw)] text-center">
+                <p className="font-mono text-[clamp(1.25rem,3.5vw,2rem)] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)]">
+                  Next reel loading
+                </p>
+                <p className="mt-10 max-w-[90vw] font-heading text-[clamp(2.25rem,7vw,6rem)] font-normal leading-[1.08] text-[var(--kc-cream)]">
+                  The story continues…
+                </p>
+              </div>
+            ) : null}
+            {questionPrimed ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1.15, ease: [0.22, 1, 0.36, 1] }}
+                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/88 px-[max(1.5rem,4vw)] text-center"
+              >
+                <p className="mb-8 max-w-[95vw] font-mono text-[clamp(1.35rem,3.8vw,2.25rem)] font-semibold uppercase leading-snug tracking-[0.18em] text-[var(--kc-champagne)] md:mb-12">
+                  {kcCopy.audienceMustDecide}
+                </p>
+                <h2 className="max-w-[92vw] font-heading text-[clamp(2.5rem,8vw,7rem)] font-normal leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.55)]">
+                  {questionPrimed.question}
+                </h2>
+                <div className="mt-14 grid max-w-[min(92vw,56rem)] gap-8 text-left font-mono text-[clamp(1.25rem,3.2vw,2rem)] uppercase leading-snug tracking-[0.12em] text-[var(--kc-cream-dim)] md:grid-cols-2 md:gap-16">
+                  <p>
+                    <span className="text-[var(--kc-champagne)]">A — </span>
+                    {questionPrimed.labelA}
+                  </p>
+                  <p>
+                    <span className="text-[var(--kc-champagne)]">B — </span>
+                    {questionPrimed.labelB}
+                  </p>
+                </div>
+              </motion.div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {cinemaPlaybackClean ? (
+          <div className="pointer-events-none absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-[45] opacity-[0.42]">
+            <span className="font-heading text-[clamp(0.75rem,1.5vw,1.1rem)] tracking-[0.14em] text-[var(--kc-cream)]">
+              Kasdan Co.
+            </span>
+          </div>
+        ) : null}
+
+        {projectionPaused ? (
+          <div className="absolute inset-0 z-[40] flex flex-col items-center justify-center bg-black px-[max(1.5rem,5vw)] text-center">
+            <p className="font-mono text-[clamp(1.35rem,3.5vw,2.25rem)] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)]">
+              Projection paused
+            </p>
+            <h2 className="mt-10 max-w-[90vw] font-heading text-[clamp(2.5rem,8vw,6.5rem)] font-normal leading-[1.06] text-[var(--kc-cream)]">
+              This reel could not be played on this display
+            </h2>
+            <p className="mx-auto mt-10 max-w-[46rem] font-mono text-[clamp(1.2rem,2.8vw,1.85rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+              The operator has been notified. Check the video URL or choose the local file again in Story builder on this
+              projector machine, then reload from the host desk.
+            </p>
+            {node?.title ? (
+              <p className="mt-14 font-heading text-[clamp(1.75rem,4vw,3rem)] text-[var(--kc-cream)]/85">{node.title}</p>
+            ) : null}
+            {node?.subtitle?.trim() ? (
+              <p className="mt-6 max-w-[40rem] text-[clamp(1.25rem,2.8vw,1.75rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+                {node.subtitle.trim()}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div
+          className={cn(
+            "flex flex-1 flex-col items-center px-5 pb-[max(4rem,env(safe-area-inset-bottom))] pt-6 md:px-16 md:pb-24 md:pt-10",
+            voteUiFullBleed
+              ? "relative z-[14] min-h-0 w-full flex-1 justify-start overflow-hidden px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] md:px-10 md:pb-6 md:pt-4"
+              : "justify-center",
+            segmentFilmActive ? "pointer-events-none absolute inset-0 z-[4] min-h-0" : "",
+            segmentFilmActive && mode === "segment" ? "justify-center" : "",
+          )}
+        >
+          <AnimatePresence mode="wait">
+            {mode === "pre_show" && (
+              <PreShow key="pre" title={eventTitle} />
+            )}
+
+            {mode === "segment" && !hasPlayableMedia && (
+              <SegmentCard
+                key="seg"
+                title={node?.title ?? "Program"}
+                playing={playback.isPlaying}
+                description={node?.subtitle}
+              />
+            )}
+
+            {mode === "vote_countdown" && (
+              <VoteCountdown
+                key="vcd"
+                wallProjector={voteUiFullBleed}
+                seconds={countdownSec}
+                ringFraction={
+                  countdownPresetSec > 0 ? Math.min(1, Math.max(0, countdownSec / countdownPresetSec)) : 1
+                }
+              />
+            )}
+
+            {(mode === "vote_open" || mode === "vote_closed") && (
+              <VoteBoard
+                key="vb"
+                wallProjector={voteUiFullBleed}
+                question={voteNode?.question ?? "Cast your vote"}
+                labelA={voteNode?.optionA?.label ?? "Option A"}
+                labelB={voteNode?.optionB?.label ?? "Option B"}
+                votesA={votesA}
+                votesB={votesB}
+                pctA={pctA}
+                pctB={pctB}
+                open={mode === "vote_open"}
+                secondsLeft={secondsLeft}
+                ringFrac={ringFrac}
+                reduceMotion={Boolean(reduceMotion)}
+              />
+            )}
+
+            {mode === "reveal" && winnerChoice && (
+              <RevealSpectacle
+                key="rev"
+                winner={winnerChoice}
+                labelA={voteNode?.optionA?.label ?? "Option A"}
+                labelB={voteNode?.optionB?.label ?? "Option B"}
+                reduceMotion={Boolean(reduceMotion)}
+              />
+            )}
+
+            {mode === "fin" && (
+              <FinCard key="fin" title={node?.title ?? "The end"} subtitle={node?.subtitle} />
+            )}
+
+            {mode === "curtain" && <Curtain key="cur" />}
+          </AnimatePresence>
+        </div>
+      </main>
+
+      {!minimalShell ? (
+        <footer className="relative z-[2] shrink-0 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2 text-center font-mono text-[0.62rem] uppercase tracking-[0.18em] text-[var(--kc-cream-dim)]/85 md:text-[0.68rem]">
+          {kcCopy.tagline}
+        </footer>
+      ) : null}
+
+      {voteUiFullBleed && votePhase === "open" && secondsLeft !== null ? (
+        <div
+          className="pointer-events-none fixed top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] z-[55] rounded-2xl border border-[oklch(0.72_0.05_78/0.32)] bg-[oklch(0.07_0.02_260/0.88)] px-2.5 py-2 shadow-[0_12px_48px_oklch(0_0_0/0.55)] backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+          aria-label={`Ballot closes in ${secondsLeft} seconds`}
+        >
+          <CountdownMedallion variant="corner" seconds={secondsLeft} fraction={ringFrac} label="Closes in" />
+        </div>
+      ) : null}
+
+      {voteUiFullBleed && votePhase === "countdown" ? (
+        <div
+          className="pointer-events-none fixed top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] z-[55] rounded-2xl border border-[oklch(0.72_0.05_78/0.32)] bg-[oklch(0.07_0.02_260/0.88)] px-2.5 py-2 shadow-[0_12px_48px_oklch(0_0_0/0.55)] backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+          aria-label={`Vote opens in ${countdownSec} seconds`}
+        >
+          <CountdownMedallion
+            variant="corner"
+            seconds={countdownSec}
+            fraction={countdownPresetSec > 0 ? Math.min(1, Math.max(0, countdownSec / countdownPresetSec)) : 1}
+            label="Opens in"
+          />
+        </div>
+      ) : null}
+
+      {minimalShell ? (
+        <>
+          {!dockOpen && !cinemaPlaybackClean ? (
+            <button
+              type="button"
+              aria-label="Open projection controls"
+              aria-expanded={false}
+              onClick={() => setDockOpen(true)}
+              className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex size-12 items-center justify-center rounded-full border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.1_0.02_280/0.92)] text-[var(--kc-champagne)] shadow-[0_8px_32px_oklch(0_0_0/0.45)] backdrop-blur-md transition-[background-color,border-color,transform] hover:border-[var(--kc-gold-muted)]/55 hover:bg-[oklch(0.14_0.025_48/0.94)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
+            >
+              <MoreHorizontal className="size-6 opacity-90" strokeWidth={2} />
+            </button>
+          ) : null}
+          {dockOpen ? (
+            <div
+              role="dialog"
+              aria-label="Projection controls"
+              className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[61] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.08_0.02_260/0.94)] p-4 shadow-[0_16px_64px_oklch(0_0_0/0.55)] backdrop-blur-lg"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-[oklch(0.72_0.05_78/0.15)] pb-3">
+                <span className="font-heading text-[clamp(1rem,2.4vw,1.35rem)] tracking-wide text-[var(--kc-cream)]">
+                  Projection
+                </span>
+                <button
+                  type="button"
+                  aria-label="Close controls"
+                  onClick={() => setDockOpen(false)}
+                  className="rounded-full p-2 text-[var(--kc-champagne)] hover:bg-[oklch(1_0_0/0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
+              {!programFullscreen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    enterProgramFullscreen();
+                    setDockOpen(false);
+                  }}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
+                >
+                  <Expand className="size-4 shrink-0 opacity-90" />
+                  Fill display
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    exitProgramFullscreen();
+                    setDockOpen(false);
+                  }}
+                  className="min-h-12 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
+                >
+                  Exit fullscreen
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={toggleCinemaUi}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
+              >
+                {hideUiWhilePlaying ? <Eye className="size-4 shrink-0 opacity-90" /> : <EyeOff className="size-4 shrink-0 opacity-90" />}
+                {hideUiWhilePlaying ? "Show house UI" : "Cinema mode"}
+              </button>
+              <button
+                type="button"
+                onClick={toggleVideoFit}
+                className="min-h-12 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
+              >
+                Video fit: {videoFit === "contain" ? "Contain" : "Cover"}
+              </button>
+              <button
+                type="button"
+                onClick={toggleTestDisplay}
+                className={cn(
+                  "min-h-12 rounded-xl border px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] hover:bg-[oklch(0.16_0.025_48/0.65)]",
+                  testDisplay
+                    ? "border-yellow-400/55 bg-yellow-500/15 text-yellow-50"
+                    : "border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] text-[var(--kc-champagne)]",
+                )}
+              >
+                Test display: {testDisplay ? "On" : "Off"}
+              </button>
+              <p className="font-mono text-[clamp(0.85rem,1.8vw,1rem)] leading-snug tracking-[0.06em] text-[var(--kc-cream-dim)]">
+                Press ` (backtick) to toggle this panel.
+              </p>
+            </div>
+          ) : null}
+        </>
+      ) : !programFullscreen ? (
+        <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={enterProgramFullscreen}
+            title="Start the show and fill the display (Esc to exit fullscreen)"
+            className="pointer-events-auto flex min-h-12 items-center gap-2 rounded-full border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.1_0.02_280/0.88)] px-4 py-3 font-mono text-[0.68rem] font-medium uppercase tracking-[0.14em] text-[var(--kc-champagne)] shadow-[0_8px_32px_oklch(0_0_0/0.35)] backdrop-blur-md transition-[background-color,border-color,transform] duration-200 ease-out hover:border-[var(--kc-gold-muted)]/50 hover:bg-[oklch(0.14_0.025_48/0.92)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
+          >
+            <Expand className="size-4 opacity-90" />
+            Fullscreen
+          </button>
+          <button
+            type="button"
+            onClick={toggleCinemaUi}
+            className="pointer-events-auto flex min-h-12 items-center gap-2 rounded-full border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.1_0.02_280/0.88)] px-4 py-3 font-mono text-[0.68rem] font-medium uppercase tracking-[0.14em] text-[var(--kc-champagne)] shadow-[0_8px_32px_oklch(0_0_0/0.35)] backdrop-blur-md transition-[background-color,border-color,transform] duration-200 ease-out hover:border-[var(--kc-gold-muted)]/50 hover:bg-[oklch(0.14_0.025_48/0.92)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
+          >
+            {hideUiWhilePlaying ? <Eye className="size-4 opacity-90" /> : <EyeOff className="size-4 opacity-90" />}
+            {hideUiWhilePlaying ? "Show UI" : "Cinema"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PreShow({ title }: { title: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+      className="w-full max-w-[min(92vw,56rem)]"
+    >
+      <ScreenTitleCardFrame>
+        <div
+          className="mx-auto mb-10 h-px w-[min(72vw,22rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/45 to-transparent md:mb-12 md:w-[28rem]"
+          aria-hidden
+        />
+        <p className="kc-screen-presents text-center">{kcCopy.presents}</p>
+        <h1 className="mt-10 text-center font-heading text-[clamp(2.25rem,8vw,5.25rem)] font-normal leading-[1.05] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.55)]">
+          {title}
+        </h1>
+        <p className="mx-auto mt-8 max-w-2xl text-pretty text-center text-[clamp(1rem,2.4vw,1.35rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+          {kcCopy.tonightsFeature} — house lights dim.
+        </p>
+      </ScreenTitleCardFrame>
+    </motion.div>
+  );
+}
+
+function SegmentCard({
+  title,
+  playing,
+  eyebrow = "Beat",
+  description,
+}: {
+  title: string;
+  playing: boolean;
+  eyebrow?: string;
+  description?: string | null;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 28 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+      className="relative w-full max-w-[min(92vw,68rem)] px-2"
+    >
+      <div
+        className="pointer-events-none absolute left-1/2 top-1/2 h-[min(52vw,420px)] w-[min(88vw,820px)] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] border border-[var(--kc-gold-muted)]/10 bg-[linear-gradient(180deg,oklch(0.88_0.04_82/0.04),transparent_55%)] opacity-90"
+        aria-hidden
+      />
+      <ScreenTitleCardFrame>
+        <div className="relative text-center">
+          <p className="kc-eyebrow text-[var(--kc-champagne)]/90">{eyebrow}</p>
+          <h2 className="mt-10 font-heading text-[clamp(2.1rem,6.8vw,5rem)] font-normal leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.65)]">
+            {title}
+          </h2>
+          {description?.trim() ? (
+            <p className="mx-auto mt-6 max-w-3xl text-pretty text-[clamp(1.05rem,2.4vw,1.35rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+              {description.trim()}
+            </p>
+          ) : null}
+          <div
+            className={cn(
+              "relative mt-14 inline-flex items-center gap-3 rounded-full border border-[var(--kc-gold-muted)]/18 bg-[oklch(0.09_0.02_280/0.55)] px-6 py-2.5 font-mono text-[clamp(0.95rem,2vw,1.15rem)] uppercase tracking-[0.14em] text-[var(--kc-cream-dim)] transition-opacity duration-300",
+              playing ? "opacity-100" : "opacity-55",
+            )}
+          >
+            <span
+              className={cn(
+                "size-2 rounded-full transition-colors duration-300",
+                playing ? "bg-[var(--kc-champagne)]/85" : "bg-[var(--kc-cream-dim)]/35",
+              )}
+              aria-hidden
+            />
+            {playing ? "Playing" : "Paused"}
+          </div>
+        </div>
+      </ScreenTitleCardFrame>
+    </motion.div>
+  );
+}
+
+function VoteCountdown({
+  seconds,
+  ringFraction,
+  wallProjector,
+}: {
+  seconds: number;
+  ringFraction: number;
+  wallProjector?: boolean;
+}) {
+  if (wallProjector) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+        className="flex min-h-[min(52vh,520px)] w-full flex-col items-center justify-center px-[max(1rem,3vw)] py-8"
+      >
+        <p className="max-w-[92vw] text-center font-mono text-[clamp(1.35rem,3.8vw,2.25rem)] font-semibold uppercase leading-snug tracking-[0.2em] text-[var(--kc-champagne)]">
+          Vote opens in
+        </p>
+        <div className="mt-10">
+          <CountdownMedallion variant="screen" seconds={seconds} fraction={ringFraction} label="Seconds until ballot" />
+        </div>
+        <p className="sr-only">Vote opens in {seconds} seconds</p>
+      </motion.div>
+    );
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 1.02 }}
+      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      className="flex flex-col items-center"
+    >
+      <p className="kc-eyebrow mb-3 text-[var(--kc-champagne)]/95">Vote opens in</p>
+      <CountdownMedallion variant="screen" seconds={seconds} fraction={ringFraction} label="Seconds until ballot" />
+    </motion.div>
+  );
+}
+
+function VoteBoard({
+  question,
+  labelA,
+  labelB,
+  votesA,
+  votesB,
+  pctA,
+  pctB,
+  open,
+  secondsLeft,
+  ringFrac,
+  reduceMotion,
+  wallProjector,
+}: {
+  question: string;
+  labelA: string;
+  labelB: string;
+  votesA: number;
+  votesB: number;
+  pctA: number;
+  pctB: number;
+  open: boolean;
+  secondsLeft: number | null;
+  ringFrac: number;
+  reduceMotion: boolean;
+  wallProjector?: boolean;
+}) {
+  const wall = Boolean(wallProjector);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -16 }}
+      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        "w-full transition-opacity duration-500",
+        wall ? "max-w-[min(98vw,92rem)]" : "max-w-[min(92vw,72rem)]",
+        !open && "opacity-[0.9]",
+      )}
+    >
+      <ScreenTitleCardFrame paddingDensity={wall ? "compact" : "comfortable"}>
+        <div className={cn("mx-auto text-center", wall ? "max-w-[min(96vw,72rem)]" : "max-w-5xl")}>
+          <p
+            className={cn(
+              "kc-screen-decide-line font-mono font-semibold uppercase leading-snug tracking-[0.14em]",
+              wall
+                ? "mb-6 text-[clamp(1.35rem,3.8vw,2.25rem)] text-[var(--kc-champagne)] md:mb-10"
+                : "mb-8 md:mb-10",
+            )}
+          >
+            {kcCopy.audienceMustDecide}
+          </p>
+          <h2
+            className={cn(
+              "font-heading font-normal leading-[1.12] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.55)] [overflow-wrap:anywhere]",
+              wall ? "text-[clamp(2.35rem,7.5vw,6rem)]" : "text-[clamp(2rem,5.5vw,4.25rem)]",
+            )}
+          >
+            {question}
+          </h2>
+          <p
+            className={cn(
+              "font-mono uppercase tracking-[0.2em] text-[var(--kc-cream-dim)]",
+              wall ? "mt-6 text-[clamp(1.1rem,2.8vw,1.65rem)]" : "mt-8 text-[clamp(0.65rem,1.5vw,0.82rem)]",
+            )}
+          >
+            {kcCopy.castYourVote}
+          </p>
+        </div>
+
+        {wall ? (
+          <div
+            className="mx-auto my-8 h-px max-w-[min(88vw,48rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent opacity-95 md:my-10"
+            aria-hidden
+          />
+        ) : (
+          <FilmReelDivider className="my-12 opacity-[0.38] md:my-14" />
+        )}
+
+        <div className={cn("mx-auto grid md:grid-cols-2", wall ? "max-w-[min(96vw,72rem)] gap-4 md:gap-12" : "max-w-5xl gap-6 md:gap-10")}>
+          <OptionTile label={labelA} side="A" dim={!open} wall={wall} />
+          <OptionTile label={labelB} side="B" dim={!open} wall={wall} />
+        </div>
+
+        <div
+          className={cn(
+            "mx-auto w-full max-w-4xl",
+            wall ? "mt-8 space-y-8 md:mt-10 md:space-y-10" : "mt-14 space-y-12 md:mt-16 md:space-y-14",
+          )}
+        >
+          <MarqueeLightBar
+            sideLabel="Option A"
+            votes={votesA}
+            pct={pctA}
+            accent="coral"
+            bulbsLit={open && !reduceMotion}
+            compact={!wall}
+            projector={wall}
+          />
+          <MarqueeLightBar
+            sideLabel="Option B"
+            votes={votesB}
+            pct={pctB}
+            accent="teal"
+            bulbsLit={open && !reduceMotion}
+            compact={!wall}
+            projector={wall}
+          />
+        </div>
+
+        <div className={cn("mx-auto flex flex-col items-center", wall ? "mt-8 md:mt-10" : "mt-14 md:mt-16")}>
+          {open && secondsLeft !== null ? (
+            <>
+              <CountdownMedallion
+                variant="screen"
+                fraction={ringFrac}
+                seconds={secondsLeft}
+                label="Ballot closes in"
+              />
+              {wall ? (
+                <p className="sr-only">Ballot closes in {secondsLeft} seconds — large timer also top corner</p>
+              ) : null}
+            </>
+          ) : (
+            <p
+              className={cn(
+                "text-[var(--kc-champagne)]/88",
+                wall
+                  ? "text-center font-mono text-[clamp(1.15rem,2.8vw,1.65rem)] font-semibold uppercase tracking-[0.14em]"
+                  : "kc-eyebrow",
+              )}
+            >
+              {kcCopy.houseSpoken}
+            </p>
+          )}
+        </div>
+      </ScreenTitleCardFrame>
+    </motion.div>
+  );
+}
+
+function OptionTile({
+  label,
+  side,
+  dim,
+  wall,
+}: {
+  label: string;
+  side: "A" | "B";
+  dim: boolean;
+  wall?: boolean;
+}) {
+  const warm = side === "A";
+  return (
+    <motion.div
+      layout
+      className={cn(
+        "rounded-md border border-[oklch(1_0_0/0.1)] bg-[oklch(0.12_0.02_260/0.45)] text-left shadow-[0_12px_40px_oklch(0_0_0/0.22)]",
+        wall ? "px-5 py-8 md:px-10 md:py-11" : "px-6 py-10 md:px-10 md:py-12",
+        warm ? "border-l-[3px] border-l-[oklch(0.58_0.08_55/0.55)]" : "border-l-[3px] border-l-[oklch(0.48_0.07_195/0.48)]",
+        dim && "opacity-50 saturate-[0.85]",
+      )}
+    >
+      <span
+        className={cn(
+          "font-mono font-semibold uppercase tracking-[0.18em] text-[var(--kc-champagne)]/90",
+          wall ? "text-[clamp(1.1rem,2.6vw,1.5rem)]" : "kc-eyebrow",
+        )}
+      >
+        Option {side}
+      </span>
+      <p
+        className={cn(
+          "font-heading font-normal leading-[1.15] text-[var(--kc-cream)] [overflow-wrap:anywhere]",
+          wall ? "mt-4 text-[clamp(1.65rem,4.5vw,3.5rem)] md:mt-6" : "mt-6 text-[clamp(1.55rem,4.2vw,2.85rem)]",
+        )}
+      >
+        {label}
+      </p>
+    </motion.div>
+  );
+}
+
+type RevealPhase = "pulse" | "flash" | "tag" | "hold";
+
+function RevealSpectacle({
+  winner,
+  labelA,
+  labelB,
+  reduceMotion,
+}: {
+  winner: VoteChoice;
+  labelA: string;
+  labelB: string;
+  reduceMotion: boolean;
+}) {
+  const label = winner === "A" ? labelA : labelB;
+  const [phase, setPhase] = useState<RevealPhase>("pulse");
+  const [pulseDigit, setPulseDigit] = useState(3);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      setPhase("hold");
+      return;
+    }
+    setPhase("pulse");
+    setPulseDigit(3);
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+    const push = (fn: () => void, ms: number) => {
+      const id = window.setTimeout(fn, ms);
+      timers.current.push(id);
+    };
+    push(() => setPulseDigit(2), 720);
+    push(() => setPulseDigit(1), 1440);
+    push(() => setPhase("flash"), 2280);
+    push(() => setPhase("tag"), 2780);
+    push(() => setPhase("hold"), 5100);
+    return () => timers.current.forEach(clearTimeout);
+  }, [winner, reduceMotion]);
+
+  return (
+    <motion.div
+      className="relative flex min-h-[60vh] w-full max-w-6xl flex-col items-center justify-center text-center"
+      animate={{
+        scale: phase === "flash" || phase === "tag" ? 0.985 : 1,
+      }}
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <AnimatePresence mode="wait">
+        {phase === "pulse" && (
+          <motion.div
+            key="pulse"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center"
+          >
+            <p className="kc-eyebrow text-[var(--kc-champagne)]">Reveal</p>
+            <div className="mt-10 flex min-h-[clamp(5rem,22vw,14rem)] items-center justify-center">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={pulseDigit}
+                  initial={{ opacity: 0, scale: 0.72, filter: "blur(14px)" }}
+                  animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, scale: 1.08, filter: "blur(8px)" }}
+                  transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                  className="font-heading text-[clamp(4rem,18vw,12rem)] font-normal tabular-nums text-[var(--kc-cream)] drop-shadow-[0_16px_72px_oklch(0_0_0/0.45)]"
+                >
+                  {pulseDigit}
+                </motion.span>
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+
+        {phase === "flash" && (
+          <motion.div
+            key="flash"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_at_center,oklch(0.11_0.03_48/0.98)_0%,oklch(0.05_0.02_280)_100%)]"
+          >
+            <motion.div
+              className="pointer-events-none absolute inset-y-[-20%] left-1/2 w-[min(42vw,520px)] max-w-none -translate-x-1/2 bg-[linear-gradient(90deg,transparent_0%,oklch(0.93_0.07_85/0.2)_45%,oklch(0.92_0.08_78/0.28)_50%,oklch(0.93_0.07_85/0.2)_55%,transparent_100%)]"
+              initial={{ scaleY: 0.08, opacity: 0 }}
+              animate={{ scaleY: 1, opacity: [0, 0.95, 0.25] }}
+              transition={{ duration: 0.52, ease: [0.22, 1, 0.36, 1] }}
+              aria-hidden
+            />
+            <motion.span
+              initial={{ scale: 1.45, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="relative font-heading text-[clamp(5.5rem,28vw,17rem)] font-normal text-[var(--kc-champagne)] drop-shadow-[0_0_100px_oklch(0.78_0.08_78/0.35)]"
+            >
+              {winner}
+            </motion.span>
+          </motion.div>
+        )}
+
+        {phase === "tag" && (
+          <motion.div
+            key="tag"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="max-w-4xl px-6"
+          >
+            <motion.p
+              initial={{ letterSpacing: "0.28em", opacity: 0 }}
+              animate={{ letterSpacing: "0.08em", opacity: 1 }}
+              transition={{ duration: 1.05, ease: [0.22, 1, 0.36, 1] }}
+              className="font-heading text-[clamp(2rem,6vw,4rem)] font-normal leading-snug text-[var(--kc-cream)] drop-shadow-[0_6px_40px_oklch(0_0_0/0.45)]"
+            >
+              The audience has chosen…
+            </motion.p>
+          </motion.div>
+        )}
+
+        {phase === "hold" && (
+          <motion.div
+            key="hold"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-[min(94vw,72rem)] px-2"
+          >
+            <ScreenTitleCardFrame>
+              <div
+                className="mx-auto h-px w-[min(78vw,38rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/55 to-transparent"
+                aria-hidden
+              />
+              <p className="kc-eyebrow mt-12 text-center text-[var(--kc-champagne)]">{kcCopy.houseSpoken}</p>
+              <motion.h3
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.12, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+                className="mt-12 text-center font-heading text-[clamp(3rem,11vw,8.5rem)] font-normal leading-[1.05] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_16px_88px_oklch(0_0_0/0.55)]"
+              >
+                {label}
+              </motion.h3>
+              <div
+                className="mx-auto mt-14 h-px w-[min(78vw,38rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent"
+                aria-hidden
+              />
+              <p className="mt-12 text-center font-mono text-[clamp(1.1rem,2.6vw,1.5rem)] uppercase tracking-[0.18em] text-[var(--kc-cream-dim)]">
+                Option {winner}
+              </p>
+            </ScreenTitleCardFrame>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function FinCard({ title, subtitle }: { title: string; subtitle?: string | null }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      className="w-full max-w-[min(88vw,48rem)]"
+    >
+      <ScreenTitleCardFrame>
+        <div className="mb-12 h-px w-[min(70vw,18rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/42 to-transparent md:mb-14 md:w-[22rem]" aria-hidden />
+        <p className="kc-eyebrow text-center text-[var(--kc-champagne)]/90">Fin</p>
+        <h2 className="mt-10 text-center font-heading text-[clamp(2.2rem,7.5vw,5rem)] font-normal tracking-tight text-[var(--kc-cream)]">
+          {title}
+        </h2>
+        {subtitle?.trim() ? (
+          <p className="mx-auto mt-8 max-w-2xl text-center text-pretty text-[clamp(1.05rem,2.4vw,1.35rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+            {subtitle.trim()}
+          </p>
+        ) : null}
+      </ScreenTitleCardFrame>
+    </motion.div>
+  );
+}
+
+function Curtain() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+      className="w-full max-w-[min(88vw,52rem)]"
+    >
+      <ScreenTitleCardFrame>
+        <div className="mb-14 h-px w-[min(72vw,20rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent md:w-[24rem]" aria-hidden />
+        <h2 className="text-center font-heading text-[clamp(2.5rem,12vw,8rem)] font-normal tracking-[0.015em] text-[var(--kc-champagne)]">
+          Curtain
+        </h2>
+        <p className="mx-auto mt-14 max-w-xl text-center font-mono text-[clamp(1rem,2.4vw,1.35rem)] uppercase leading-relaxed tracking-[0.14em] text-[var(--kc-cream-dim)]">
+          Thank you — the picture fades to black.
+        </p>
+      </ScreenTitleCardFrame>
+    </motion.div>
+  );
+}

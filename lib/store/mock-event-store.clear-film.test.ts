@@ -12,6 +12,7 @@ const graphWithClip: StoryGraph = {
       title: "Opening",
       subtitle: null,
       operatorClipName: "01_opening.mp4",
+      localVideoKey: null,
       question: null,
       optionA: null,
       optionB: null,

@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { deleteLocalVideoBlob, putLocalVideoBlob } from "@/lib/media/local-video-store";
 import { EMPTY_STORY_GRAPH } from "@/lib/mock-data";
 import { nodePickerLabel } from "@/lib/showtime/node-picker-label";
 import {
@@ -219,6 +220,7 @@ export default function AdminStoryPage() {
           title: "New beat",
           subtitle: null,
           operatorClipName: "00_new_beat.mp4",
+          localVideoKey: null,
           question: null,
           optionA: null,
           optionB: null,
@@ -237,8 +239,10 @@ export default function AdminStoryPage() {
   };
 
   const removeSelectedNode = () => {
+    const victim = graph.nodes[selectedId];
     const next = removeNodeFromGraph(graph, selectedId);
     if (!next) return;
+    if (victim?.localVideoKey) void deleteLocalVideoBlob(victim.localVideoKey).catch(() => {});
     setGraph(next);
     setSelectedId(next.rootId);
   };
@@ -334,8 +338,9 @@ export default function AdminStoryPage() {
                 Story builder
               </DisplayHeading>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Branch map for live voting: clip filenames are cues for the operator (played outside this app). /screen
-                only shows ballots and results.
+                Branch map for live voting: clip filenames cue the operator (playback is manual). You can optionally attach
+                video files per beat on this browser (IndexedDB) and save the graph in Film library — blobs stay on this
+                machine. /screen only shows ballots and results.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -599,6 +604,65 @@ export default function AdminStoryPage() {
                       <p className="text-[0.65rem] text-muted-foreground">
                         Shown on /host as the cue for this beat. Playback is manual in your video player.
                       </p>
+                    </div>
+                    <div className="space-y-2 sm:col-span-2 rounded-lg border border-[var(--bn-line)] bg-card/40 px-3 py-3">
+                      <Label className="text-xs">Local video file (this browser)</Label>
+                      <p className="text-[0.65rem] leading-relaxed text-muted-foreground">
+                        Stored in IndexedDB. Film library saves the story JSON plus these keys — reopen on{" "}
+                        <strong className="text-foreground/90">this browser</strong> to use the same files. Clearing site
+                        data removes blobs.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                          type="file"
+                          accept="video/*"
+                          className="max-w-md cursor-pointer text-xs file:mr-2 file:rounded-md file:border file:border-[var(--bn-line)] file:bg-background file:px-2 file:py-1"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!file) return;
+                            const prevKey = node.localVideoKey;
+                            const key = `local-${node.id}-${Date.now().toString(36)}`;
+                            try {
+                              await putLocalVideoBlob(key, file);
+                              if (prevKey && prevKey !== key) await deleteLocalVideoBlob(prevKey).catch(() => {});
+                              const name = file.name?.trim();
+                              const clip = node.operatorClipName?.trim();
+                              const useFilename =
+                                name &&
+                                (!clip || clip === "00_placeholder.mp4" || clip === "00_new_beat.mp4");
+                              patchNode(node.id, {
+                                localVideoKey: key,
+                                ...(useFilename ? { operatorClipName: name } : {}),
+                              });
+                              pushDeskSuccess(`Stored “${file.name}” for this beat. Save to Film library when ready.`);
+                            } catch {
+                              setDiskBanner("Could not store file — storage may be full or blocked.");
+                            }
+                          }}
+                        />
+                        {node.localVideoKey ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-md text-xs"
+                            onClick={async () => {
+                              const k = node.localVideoKey;
+                              if (!k) return;
+                              patchNode(node.id, { localVideoKey: null });
+                              await deleteLocalVideoBlob(k).catch(() => {});
+                            }}
+                          >
+                            Remove local file
+                          </Button>
+                        ) : null}
+                      </div>
+                      {node.localVideoKey ? (
+                        <p className="font-mono text-[0.65rem] text-muted-foreground">
+                          IndexedDB key: <span className="text-foreground/80">{node.localVideoKey}</span>
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <input

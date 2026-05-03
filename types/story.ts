@@ -17,6 +17,11 @@ export interface StoryNode {
    * Example: `01_Opening.mp4`
    */
   operatorClipName: string;
+  /**
+   * Optional: video file stored in this browser’s IndexedDB (Story builder / film library).
+   * Same machine + browser only. Live /host and /screen do not play this file.
+   */
+  localVideoKey: string | null;
   question: string | null;
   optionA: StoryBranch | null;
   optionB: StoryBranch | null;

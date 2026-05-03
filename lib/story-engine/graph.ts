@@ -75,11 +75,16 @@ export function normalizeStoryGraph(graph: StoryGraph): StoryGraph {
       };
     };
 
+    const lk = n.localVideoKey;
+    const localVideoKey =
+      typeof lk === "string" && lk.trim() ? lk.trim() : null;
+
     nodes[id as StoryNodeId] = {
       id: (n.id ?? id) as StoryNodeId,
       title: n.title ?? "",
       subtitle: n.subtitle ?? null,
       operatorClipName: clipById[id]!,
+      localVideoKey,
       question: n.question ?? null,
       optionA: normalizeBranch(n.optionA ?? null),
       optionB: normalizeBranch(n.optionB ?? null),
@@ -174,6 +179,7 @@ export function duplicateNodeInGraph(
     ...src,
     id: newId,
     title: `${src.title || "Beat"} (copy)`,
+    localVideoKey: null,
   };
 
   return {

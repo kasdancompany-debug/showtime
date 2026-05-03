@@ -15,6 +15,7 @@ import { MarqueeLightBar } from "@/components/screen/marquee-light-bar";
 import { ScreenTitleCardFrame } from "@/components/screen/screen-title-card-frame";
 import { ScreenVideo } from "@/components/screen/screen-video";
 import { useEventRoomPlaybackSync } from "@/hooks/use-event-room-playback-sync";
+import { useRoomStoryInboundSync } from "@/hooks/use-room-story-sync";
 import { useScreenChannelStatus } from "@/hooks/use-screen-channel-status";
 import { useScreenSurfaceHeartbeat } from "@/hooks/use-screen-surface-heartbeat";
 import { useAudienceVoteIngest, useVoteStateBroadcaster } from "@/hooks/use-room-vote-sync";
@@ -27,6 +28,34 @@ import { selectVoteDisplayNode } from "@/lib/store/presentation";
 import { getNode } from "@/lib/story-engine/graph";
 import type { VoteChoice } from "@/types";
 import { cn } from "@/lib/utils";
+
+/** Short descending sting when the operator timer seals the ballot (projection surface). */
+function playPollCloseSting() {
+  if (typeof window === "undefined") return;
+  try {
+    const ACtx = window.AudioContext;
+    const webkit = (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const Ctor = ACtx ?? webkit;
+    if (!Ctor) return;
+    const ctx = new Ctor();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.frequency.setValueAtTime(720, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(196, ctx.currentTime + 0.32);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.11, ctx.currentTime + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.48);
+    void ctx.resume().catch(() => {});
+    o.start(ctx.currentTime);
+    o.stop(ctx.currentTime + 0.5);
+    window.setTimeout(() => void ctx.close().catch(() => {}), 700);
+  } catch {
+    /* ignore — autoplay or missing AudioContext */
+  }
+}
 
 type DisplayMode =
   | "pre_show"
@@ -56,6 +85,11 @@ function deriveMode(
   return "segment";
 }
 
+/** Wall dwell after winner is revealed, then auto-advance playhead into the winning branch (must be separate from auto-reveal timers). */
+/** After engine is `revealed`, wait long enough for on-screen reveal choreography to finish before rolling the next beat. */
+const SCREEN_REVEAL_HOLD_MS = 6000;
+const SCREEN_AUTO_REVEAL_MS = 650;
+
 export function ScreenDisplay() {
   const reduceMotion = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +99,7 @@ export function ScreenDisplay() {
   useScreenSurfaceHeartbeat(eventId);
   useVoteStateBroadcaster();
   useAudienceVoteIngest();
+  useRoomStoryInboundSync();
 
   const graph = useMockEventStore((s) => s.graph);
   const engine = useMockEventStore((s) => s.engine);
@@ -86,8 +121,9 @@ export function ScreenDisplay() {
   const startEvent = useMockEventStore((s) => s.startEvent);
   const playSegment = useMockEventStore((s) => s.playSegment);
   const currentNodeId = useMockEventStore((s) => s.currentNodeId);
+  const mediaGeneration = useMockEventStore((s) => s.mediaGeneration);
   const node = useMemo(() => getNode(graph, currentNodeId), [graph, currentNodeId]);
-  const { src: videoSrc, status: playbackSrcStatus } = useNodePlaybackSrc(node);
+  const { src: videoSrc, status: playbackSrcStatus } = useNodePlaybackSrc(node, mediaGeneration);
   const voteNode = useMemo(() => selectVoteDisplayNode(engine), [engine]);
   const endingNode = useMemo(() => isAtEndingNode(engine), [engine]);
 
@@ -101,6 +137,7 @@ export function ScreenDisplay() {
   } | null>(null);
   const questionOpenTimerRef = useRef<number | null>(null);
   const autoRevealKeyRef = useRef<string | null>(null);
+  const autoAdvanceKeyRef = useRef<string | null>(null);
   const projectionErrorBroadcastRef = useRef<string | null>(null);
 
   const [videoFit, setVideoFit] = useState<"contain" | "cover">(() => {
@@ -236,9 +273,11 @@ export function ScreenDisplay() {
   useEffect(() => {
     if (engine.phase === "open" || engine.phase === "countdown") {
       autoRevealKeyRef.current = null;
+      autoAdvanceKeyRef.current = null;
     }
   }, [engine.phase]);
 
+  /** Auto-reveal only: advance is scheduled in a separate effect so cleanup here does not cancel the branch roll. */
   useEffect(() => {
     if (engine.phase !== "awaiting_reveal" || !engine.winner || !engine.voteNodeId) return;
     if (needsHostChoice(engine)) return;
@@ -250,18 +289,28 @@ export function ScreenDisplay() {
       const st = useMockEventStore.getState();
       if (st.engine.phase !== "awaiting_reveal") return;
       st.revealWinnerToRoom();
-    }, 900);
-    const tAdvance = window.setTimeout(() => {
+    }, SCREEN_AUTO_REVEAL_MS);
+
+    return () => window.clearTimeout(tReveal);
+  }, [engine.phase, engine.winner, engine.voteNodeId]); // eslint-disable-line react-hooks/exhaustive-deps -- reveal timers only
+
+  useEffect(() => {
+    if (engine.phase !== "revealed" || !engine.winner || !engine.voteNodeId) return;
+    const key = `adv:${engine.voteNodeId}:${engine.winner}`;
+    if (autoAdvanceKeyRef.current === key) return;
+    autoAdvanceKeyRef.current = key;
+
+    const t = window.setTimeout(() => {
       const st = useMockEventStore.getState();
       if (st.engine.phase !== "revealed") return;
       st.advanceToWinningBranch();
-    }, 900 + 10_000);
+    }, SCREEN_REVEAL_HOLD_MS);
 
     return () => {
-      window.clearTimeout(tReveal);
-      window.clearTimeout(tAdvance);
+      window.clearTimeout(t);
+      autoAdvanceKeyRef.current = null;
     };
-  }, [engine.phase, engine.winner, engine.voteNodeId]); // eslint-disable-line react-hooks/exhaustive-deps -- reveal timers only
+  }, [engine.phase, engine.winner, engine.voteNodeId]);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -278,6 +327,17 @@ export function ScreenDisplay() {
     votePhase === "open" && secondsLeft !== null
       ? Math.min(1, Math.max(0, secondsLeft / ringMaxSec))
       : 0;
+
+  const prevVotePhaseRef = useRef(votePhase);
+  const [pollCloseCue, setPollCloseCue] = useState(0);
+  useEffect(() => {
+    const prev = prevVotePhaseRef.current;
+    prevVotePhaseRef.current = votePhase;
+    if (prev === "open" && votePhase === "closed") {
+      setPollCloseCue((n) => n + 1);
+      if (!reduceMotion) playPollCloseSting();
+    }
+  }, [votePhase, reduceMotion]);
 
   const [hideUiWhilePlaying, setHideUiWhilePlaying] = useState(false);
   /** True while this page’s root container is the browser fullscreen element — room chrome hidden. */
@@ -517,10 +577,12 @@ export function ScreenDisplay() {
               <p className="mt-4 font-mono text-[clamp(0.62rem,1.4vw,0.78rem)] tracking-[0.18em] text-[var(--kc-cream-dim)]">
                 {kcCopy.tonightsFeature}
               </p>
-              <p className="mt-3 max-w-3xl text-pretty font-mono text-[clamp(0.72rem,1.65vw,0.95rem)] leading-relaxed text-[var(--kc-cream-dim)]/80">
-                Same live story as <span className="text-[var(--kc-champagne)]/90">/host</span> in this tab — open the
-                room here for projection; operator can steer or recover anytime.
-              </p>
+              {!eventStarted ? (
+                <p className="mt-3 max-w-3xl text-pretty font-mono text-[clamp(0.72rem,1.65vw,0.95rem)] leading-relaxed text-[var(--kc-cream-dim)]/80">
+                  Same live story as <span className="text-[var(--kc-champagne)]/90">/host</span> in this tab — open the
+                  room here for projection; operator can steer or recover anytime.
+                </p>
+              ) : null}
             </div>
           </div>
           <span className="max-w-[26%] shrink-0 pt-0.5 text-right font-mono text-[clamp(0.58rem,1.2vw,0.72rem)] uppercase tracking-[0.16em] text-[var(--kc-cream-dim)] md:pt-0">
@@ -546,6 +608,7 @@ export function ScreenDisplay() {
         {segmentFilmActive ? (
           <div className="absolute inset-0 z-[5] flex min-h-0 flex-col bg-black">
             <ScreenVideo
+              key={`${currentNodeId}-${mediaGeneration}-${videoSrc ?? "none"}`}
               src={videoSrc!}
               objectFit={videoFit}
               sendPlaybackTelemetry={sendPlaybackTelemetry}
@@ -644,6 +707,7 @@ export function ScreenDisplay() {
                 title={node?.title ?? "Program"}
                 playing={playback.isPlaying}
                 description={node?.subtitle}
+                statusNote="No video selected."
               />
             )}
 
@@ -672,6 +736,7 @@ export function ScreenDisplay() {
                 open={mode === "vote_open"}
                 secondsLeft={secondsLeft}
                 ringFrac={ringFrac}
+                closePulseKey={pollCloseCue}
                 reduceMotion={Boolean(reduceMotion)}
               />
             )}
@@ -683,6 +748,7 @@ export function ScreenDisplay() {
                 labelA={voteNode?.optionA?.label ?? "Option A"}
                 labelB={voteNode?.optionB?.label ?? "Option B"}
                 reduceMotion={Boolean(reduceMotion)}
+                wallProjector={voteUiFullBleed}
               />
             )}
 
@@ -702,14 +768,29 @@ export function ScreenDisplay() {
       ) : null}
 
       {voteUiFullBleed && votePhase === "open" && secondsLeft !== null ? (
-        <div
-          className="pointer-events-none fixed top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] z-[55] rounded-2xl border border-[oklch(0.72_0.05_78/0.32)] bg-[oklch(0.07_0.02_260/0.88)] px-2.5 py-2 shadow-[0_12px_48px_oklch(0_0_0/0.55)] backdrop-blur-md"
+        <motion.div
+          animate={
+            !reduceMotion && secondsLeft <= 5
+              ? { scale: [1, 1.06, 1], filter: ["brightness(1)", "brightness(1.25)", "brightness(1)"] }
+              : { scale: 1, filter: "brightness(1)" }
+          }
+          transition={
+            !reduceMotion && secondsLeft <= 5
+              ? { duration: 0.55, repeat: Infinity, ease: "easeInOut" }
+              : { duration: 0.3 }
+          }
+          className={cn(
+            "pointer-events-none fixed top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] z-[55] rounded-2xl border px-2.5 py-2 shadow-[0_12px_48px_oklch(0_0_0/0.55)] backdrop-blur-md",
+            secondsLeft <= 5
+              ? "border-amber-400/55 bg-[oklch(0.12_0.04_48/0.92)]"
+              : "border-[oklch(0.72_0.05_78/0.32)] bg-[oklch(0.07_0.02_260/0.88)]",
+          )}
           role="status"
           aria-live="polite"
           aria-label={`Ballot closes in ${secondsLeft} seconds`}
         >
           <CountdownMedallion variant="corner" seconds={secondsLeft} fraction={ringFrac} label="Closes in" />
-        </div>
+        </motion.div>
       ) : null}
 
       {voteUiFullBleed && votePhase === "countdown" ? (
@@ -873,11 +954,14 @@ function SegmentCard({
   playing,
   eyebrow = "Beat",
   description,
+  statusNote,
 }: {
   title: string;
   playing: boolean;
   eyebrow?: string;
   description?: string | null;
+  /** Shown under the title when the beat has no playable media (e.g. cleared URL + local file). */
+  statusNote?: string | null;
 }) {
   return (
     <motion.div
@@ -897,6 +981,11 @@ function SegmentCard({
           <h2 className="mt-10 font-heading text-[clamp(2.1rem,6.8vw,5rem)] font-normal leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.65)]">
             {title}
           </h2>
+          {statusNote ? (
+            <p className="mx-auto mt-8 max-w-3xl text-pretty text-center font-mono text-[clamp(1rem,2.2vw,1.25rem)] uppercase tracking-[0.12em] text-[var(--kc-champagne)]/90">
+              {statusNote}
+            </p>
+          ) : null}
           {description?.trim() ? (
             <p className="mx-auto mt-6 max-w-3xl text-pretty text-[clamp(1.05rem,2.4vw,1.35rem)] leading-relaxed text-[var(--kc-cream-dim)]">
               {description.trim()}
@@ -939,7 +1028,7 @@ function VoteCountdown({
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-        className="flex min-h-[min(52vh,520px)] w-full flex-col items-center justify-center px-[max(1rem,3vw)] py-8"
+        className="flex min-h-[min(40vh,420px)] w-full flex-col items-center justify-center px-[max(1rem,3vw)] py-6 md:py-8"
       >
         <p className="max-w-[92vw] text-center font-mono text-[clamp(1.35rem,3.8vw,2.25rem)] font-semibold uppercase leading-snug tracking-[0.2em] text-[var(--kc-champagne)]">
           Vote opens in
@@ -976,6 +1065,7 @@ function VoteBoard({
   open,
   secondsLeft,
   ringFrac,
+  closePulseKey,
   reduceMotion,
   wallProjector,
 }: {
@@ -989,70 +1079,170 @@ function VoteBoard({
   open: boolean;
   secondsLeft: number | null;
   ringFrac: number;
+  closePulseKey?: number;
   reduceMotion: boolean;
   wallProjector?: boolean;
 }) {
   const wall = Boolean(wallProjector);
+  const motionSafe = Boolean(reduceMotion);
+  const totalVotes = votesA + votesB;
+  const leader: "A" | "B" | "tie" | "none" =
+    totalVotes === 0 ? "none" : votesA === votesB ? "tie" : votesA > votesB ? "A" : "B";
+  const leadA = leader === "A";
+  const leadB = leader === "B";
+  const emphasisLeader = leader !== "none" && leader !== "tie";
+
+  const [closeFlash, setCloseFlash] = useState(false);
+  const prevOpenRef = useRef(open);
+  const [sealedSuspense, setSealedSuspense] = useState(false);
+
+  useEffect(() => {
+    if (open) setCloseFlash(false);
+  }, [open]);
+
+  useEffect(() => {
+    if (prevOpenRef.current && !open) {
+      setSealedSuspense(true);
+      const t = window.setTimeout(() => setSealedSuspense(false), 1600);
+      prevOpenRef.current = open;
+      return () => window.clearTimeout(t);
+    }
+    prevOpenRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
+    if (open || !closePulseKey) return;
+    setCloseFlash(true);
+    const t = window.setTimeout(() => setCloseFlash(false), 950);
+    return () => window.clearTimeout(t);
+  }, [open, closePulseKey]);
+
+  const finalFive = Boolean(open && secondsLeft !== null && secondsLeft <= 5 && secondsLeft > 0);
+  /** During close suspense, freeze “who’s ahead” glow; after beat, emphasize winner on projector */
+  const showLeaderGlow = emphasisLeader && (open || !sealedSuspense);
+
+  const statusHeadline =
+    !open && sealedSuspense
+      ? "The audience has decided…"
+      : !open
+        ? "Poll sealed — final tally locked"
+        : totalVotes === 0
+          ? "Audience is choosing…"
+          : "Votes are live — watch the room swing";
+
+  const statusSub =
+    !open && sealedSuspense
+      ? "Hold — locking the final split across every phone in the room."
+      : !open
+        ? "The ballot is closed. Here’s how the house split before we reveal the winning path."
+        : totalVotes === 0
+          ? "Phones are waking up — first taps land any second."
+          : "Every tap reshapes the marquee in real time.";
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -16 }}
-      transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.48, ease: [0.22, 1, 0.36, 1] }}
       className={cn(
-        "w-full transition-opacity duration-500",
-        wall ? "max-w-[min(98vw,92rem)]" : "max-w-[min(92vw,72rem)]",
-        !open && "opacity-[0.9]",
+        "relative w-full transition-opacity duration-500",
+        wall ? "flex max-w-[min(98vw,92rem)] min-h-0 flex-1 flex-col" : "max-w-[min(92vw,72rem)]",
+        !open && "opacity-[0.97]",
       )}
     >
-      <ScreenTitleCardFrame paddingDensity={wall ? "compact" : "comfortable"}>
+      <AnimatePresence>
+        {closeFlash ? (
+          <motion.div
+            key="close-flash"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.92, 0] }}
+            transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+            className="pointer-events-none absolute inset-0 z-30 rounded-[inherit] bg-[radial-gradient(ellipse_at_center,oklch(0.85_0.14_78/0.35)_0%,transparent_62%)]"
+            aria-hidden
+          />
+        ) : null}
+      </AnimatePresence>
+
+      <ScreenTitleCardFrame paddingDensity={wall ? "dense" : "comfortable"}>
         <div className={cn("mx-auto text-center", wall ? "max-w-[min(96vw,72rem)]" : "max-w-5xl")}>
-          <p
+          <motion.p
+            animate={
+              !motionSafe && open && totalVotes === 0
+                ? { opacity: [0.65, 1, 0.65] }
+                : { opacity: 1 }
+            }
+            transition={
+              !motionSafe && open && totalVotes === 0
+                ? { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0.35 }
+            }
             className={cn(
               "kc-screen-decide-line font-mono font-semibold uppercase leading-snug tracking-[0.14em]",
               wall
-                ? "mb-6 text-[clamp(1.35rem,3.8vw,2.25rem)] text-[var(--kc-champagne)] md:mb-10"
-                : "mb-8 md:mb-10",
+                ? "mb-2 text-[clamp(1.05rem,3vw,1.75rem)] text-[var(--kc-champagne)] md:mb-4"
+                : "mb-6 md:mb-8",
+              finalFive && "text-amber-200 drop-shadow-[0_0_22px_oklch(0.78_0.12_78/0.35)]",
             )}
           >
-            {kcCopy.audienceMustDecide}
+            {statusHeadline}
+          </motion.p>
+          <p
+            className={cn(
+              "mx-auto max-w-[min(52ch,94vw)] font-mono uppercase leading-snug tracking-[0.18em] text-[var(--kc-cream-dim)]",
+              wall ? "mb-4 text-[clamp(0.82rem,2vw,1.05rem)] md:mb-5" : "mb-6 text-[clamp(0.62rem,1.45vw,0.78rem)] md:mb-8",
+            )}
+          >
+            {statusSub}
           </p>
           <h2
             className={cn(
               "font-heading font-normal leading-[1.12] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.55)] [overflow-wrap:anywhere]",
-              wall ? "text-[clamp(2.35rem,7.5vw,6rem)]" : "text-[clamp(2rem,5.5vw,4.25rem)]",
+              wall ? "text-[clamp(1.85rem,6.2vw,4.25rem)]" : "text-[clamp(2rem,5.5vw,4.25rem)]",
             )}
           >
             {question}
           </h2>
           <p
             className={cn(
-              "font-mono uppercase tracking-[0.2em] text-[var(--kc-cream-dim)]",
-              wall ? "mt-6 text-[clamp(1.1rem,2.8vw,1.65rem)]" : "mt-8 text-[clamp(0.65rem,1.5vw,0.82rem)]",
+              "font-mono uppercase tracking-[0.2em] text-[var(--kc-champagne)]/85",
+              wall ? "mt-3 text-[clamp(0.95rem,2.2vw,1.35rem)]" : "mt-8 text-[clamp(0.65rem,1.5vw,0.82rem)]",
             )}
           >
-            {kcCopy.castYourVote}
+            {open ? kcCopy.castYourVote : kcCopy.houseSpoken}
           </p>
         </div>
 
         {wall ? (
           <div
-            className="mx-auto my-8 h-px max-w-[min(88vw,48rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent opacity-95 md:my-10"
+            className="mx-auto my-4 h-px max-w-[min(88vw,48rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent opacity-95 md:my-5"
             aria-hidden
           />
         ) : (
           <FilmReelDivider className="my-12 opacity-[0.38] md:my-14" />
         )}
 
-        <div className={cn("mx-auto grid md:grid-cols-2", wall ? "max-w-[min(96vw,72rem)] gap-4 md:gap-12" : "max-w-5xl gap-6 md:gap-10")}>
-          <OptionTile label={labelA} side="A" dim={!open} wall={wall} />
-          <OptionTile label={labelB} side="B" dim={!open} wall={wall} />
+        <div className={cn("mx-auto grid md:grid-cols-2", wall ? "max-w-[min(96vw,72rem)] gap-3 md:gap-8" : "max-w-5xl gap-6 md:gap-10")}>
+          <OptionTile
+            label={labelA}
+            side="A"
+            dim={!open}
+            wall={wall}
+            spotlight={showLeaderGlow && leadA}
+          />
+          <OptionTile
+            label={labelB}
+            side="B"
+            dim={!open}
+            wall={wall}
+            spotlight={showLeaderGlow && leadB}
+          />
         </div>
 
         <div
           className={cn(
             "mx-auto w-full max-w-4xl",
-            wall ? "mt-8 space-y-8 md:mt-10 md:space-y-10" : "mt-14 space-y-12 md:mt-16 md:space-y-14",
+            wall ? "mt-4 space-y-4 md:mt-5 md:space-y-5" : "mt-14 space-y-12 md:mt-16 md:space-y-14",
           )}
         >
           <MarqueeLightBar
@@ -1060,45 +1250,86 @@ function VoteBoard({
             votes={votesA}
             pct={pctA}
             accent="coral"
-            bulbsLit={open && !reduceMotion}
+            bulbsLit={open && !motionSafe}
             compact={!wall}
             projector={wall}
+            leading={showLeaderGlow && leadA}
+            reduceMotion={motionSafe}
           />
           <MarqueeLightBar
             sideLabel="Option B"
             votes={votesB}
             pct={pctB}
             accent="teal"
-            bulbsLit={open && !reduceMotion}
+            bulbsLit={open && !motionSafe}
             compact={!wall}
             projector={wall}
+            leading={showLeaderGlow && leadB}
+            reduceMotion={motionSafe}
           />
         </div>
 
-        <div className={cn("mx-auto flex flex-col items-center", wall ? "mt-8 md:mt-10" : "mt-14 md:mt-16")}>
+        <div className={cn("mx-auto flex flex-col items-center", wall ? "mt-4 md:mt-5" : "mt-14 md:mt-16")}>
           {open && secondsLeft !== null ? (
             <>
-              <CountdownMedallion
-                variant="screen"
-                fraction={ringFrac}
-                seconds={secondsLeft}
-                label="Ballot closes in"
-              />
+              <motion.div
+                animate={
+                  !motionSafe && finalFive
+                    ? {
+                        scale: [1, 1.05, 1],
+                        filter: ["brightness(1)", "brightness(1.15)", "brightness(1)"],
+                      }
+                    : {}
+                }
+                transition={
+                  !motionSafe && finalFive
+                    ? { duration: 0.48, repeat: Infinity, ease: "easeInOut" }
+                    : {}
+                }
+                className={cn(finalFive && "drop-shadow-[0_0_36px_oklch(0.78_0.14_78/0.45)]")}
+              >
+                <CountdownMedallion
+                  variant="screen"
+                  fraction={ringFrac}
+                  seconds={secondsLeft}
+                  label={finalFive ? "Final seconds" : "Ballot closes in"}
+                />
+              </motion.div>
+              {!motionSafe && finalFive ? (
+                <motion.p
+                  aria-hidden
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 font-heading text-[clamp(1.75rem,6vw,3.25rem)] font-normal tabular-nums tracking-wide text-amber-200 drop-shadow-[0_8px_40px_oklch(0_0_0/0.45)]"
+                >
+                  {secondsLeft}
+                </motion.p>
+              ) : null}
               {wall ? (
                 <p className="sr-only">Ballot closes in {secondsLeft} seconds — large timer also top corner</p>
               ) : null}
             </>
           ) : (
-            <p
-              className={cn(
-                "text-[var(--kc-champagne)]/88",
-                wall
-                  ? "text-center font-mono text-[clamp(1.15rem,2.8vw,1.65rem)] font-semibold uppercase tracking-[0.14em]"
-                  : "kc-eyebrow",
-              )}
+            <motion.div
+              initial={!motionSafe ? { scale: 0.94, opacity: 0 } : false}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 120, damping: 18 }}
+              className="flex flex-col items-center gap-3"
             >
-              {kcCopy.houseSpoken}
-            </p>
+              <p
+                className={cn(
+                  "text-center text-[var(--kc-champagne)]",
+                  wall
+                    ? "font-mono text-[clamp(1.15rem,2.8vw,1.65rem)] font-semibold uppercase tracking-[0.14em]"
+                    : "kc-eyebrow",
+                )}
+              >
+                {kcCopy.houseSpoken}
+              </p>
+              <p className="max-w-[min(44ch,92vw)] text-center font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] uppercase tracking-[0.16em] text-[var(--kc-cream-dim)]">
+                A {Math.round(pctA)}% · B {Math.round(pctB)}% · {totalVotes} ballots
+              </p>
+            </motion.div>
           )}
         </div>
       </ScreenTitleCardFrame>
@@ -1111,20 +1342,29 @@ function OptionTile({
   side,
   dim,
   wall,
+  spotlight,
 }: {
   label: string;
   side: "A" | "B";
   dim: boolean;
   wall?: boolean;
+  spotlight?: boolean;
 }) {
   const warm = side === "A";
   return (
     <motion.div
       layout
+      animate={{
+        boxShadow: spotlight
+          ? "0 0 52px oklch(0.78 0.12 78 / 0.28)"
+          : "0 12px 40px oklch(0 0 0 / 0.22)",
+      }}
+      transition={{ type: "spring", stiffness: 140, damping: 22 }}
       className={cn(
-        "rounded-md border border-[oklch(1_0_0/0.1)] bg-[oklch(0.12_0.02_260/0.45)] text-left shadow-[0_12px_40px_oklch(0_0_0/0.22)]",
-        wall ? "px-5 py-8 md:px-10 md:py-11" : "px-6 py-10 md:px-10 md:py-12",
+        "rounded-md border border-[oklch(1_0_0/0.1)] bg-[oklch(0.12_0.02_260/0.45)] text-left",
+        wall ? "px-4 py-5 md:px-6 md:py-7" : "px-6 py-10 md:px-10 md:py-12",
         warm ? "border-l-[3px] border-l-[oklch(0.58_0.08_55/0.55)]" : "border-l-[3px] border-l-[oklch(0.48_0.07_195/0.48)]",
+        spotlight && "border-[oklch(0.85_0.12_78/0.42)] ring-1 ring-amber-400/35",
         dim && "opacity-50 saturate-[0.85]",
       )}
     >
@@ -1155,12 +1395,15 @@ function RevealSpectacle({
   labelA,
   labelB,
   reduceMotion,
+  wallProjector,
 }: {
   winner: VoteChoice;
   labelA: string;
   labelB: string;
   reduceMotion: boolean;
+  wallProjector?: boolean;
 }) {
+  const wall = Boolean(wallProjector);
   const label = winner === "A" ? labelA : labelB;
   const [phase, setPhase] = useState<RevealPhase>("pulse");
   const [pulseDigit, setPulseDigit] = useState(3);
@@ -1179,21 +1422,21 @@ function RevealSpectacle({
       const id = window.setTimeout(fn, ms);
       timers.current.push(id);
     };
-    push(() => setPulseDigit(2), 720);
-    push(() => setPulseDigit(1), 1440);
-    push(() => setPhase("flash"), 2280);
-    push(() => setPhase("tag"), 2780);
-    push(() => setPhase("hold"), 5100);
+    const pace = wall ? 0.82 : 1;
+    push(() => setPulseDigit(2), Math.round(720 * pace));
+    push(() => setPulseDigit(1), Math.round(1440 * pace));
+    push(() => setPhase("flash"), Math.round(2280 * pace));
+    push(() => setPhase("tag"), Math.round(2780 * pace));
+    push(() => setPhase("hold"), Math.round(wall ? 3600 : 5100));
     return () => timers.current.forEach(clearTimeout);
-  }, [winner, reduceMotion]);
+  }, [winner, reduceMotion, wall]);
 
   return (
     <motion.div
-      className="relative flex min-h-[60vh] w-full max-w-6xl flex-col items-center justify-center text-center"
-      animate={{
-        scale: phase === "flash" || phase === "tag" ? 0.985 : 1,
-      }}
-      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        "relative flex w-full max-w-6xl flex-col items-center justify-center text-center",
+        wall ? "flex min-h-0 flex-1 flex-col py-1" : "min-h-[60vh]",
+      )}
     >
       <AnimatePresence mode="wait">
         {phase === "pulse" && (
@@ -1212,8 +1455,8 @@ function RevealSpectacle({
                   initial={{ opacity: 0, scale: 0.72, filter: "blur(14px)" }}
                   animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                   exit={{ opacity: 0, scale: 1.08, filter: "blur(8px)" }}
-                  transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
-                  className="font-heading text-[clamp(4rem,18vw,12rem)] font-normal tabular-nums text-[var(--kc-cream)] drop-shadow-[0_16px_72px_oklch(0_0_0/0.45)]"
+                  transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                  className="font-heading text-[clamp(3.25rem,16vw,10rem)] font-normal tabular-nums text-[var(--kc-cream)] drop-shadow-[0_16px_72px_oklch(0_0_0/0.45)] sm:text-[clamp(4rem,18vw,12rem)]"
                 >
                   {pulseDigit}
                 </motion.span>
@@ -1270,29 +1513,50 @@ function RevealSpectacle({
         {phase === "hold" && (
           <motion.div
             key="hold"
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-[min(94vw,72rem)] px-2"
+            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full max-w-[min(94vw,72rem)] px-1 sm:px-2"
           >
-            <ScreenTitleCardFrame>
+            <ScreenTitleCardFrame paddingDensity={wall ? "dense" : "comfortable"}>
               <div
                 className="mx-auto h-px w-[min(78vw,38rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/55 to-transparent"
                 aria-hidden
               />
-              <p className="kc-eyebrow mt-12 text-center text-[var(--kc-champagne)]">{kcCopy.houseSpoken}</p>
+              <p
+                className={cn(
+                  "kc-eyebrow text-center text-[var(--kc-champagne)]",
+                  wall ? "mt-4 md:mt-5" : "mt-12",
+                )}
+              >
+                {kcCopy.houseSpoken}
+              </p>
               <motion.h3
-                initial={{ opacity: 0, scale: 0.94 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.12, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-                className="mt-12 text-center font-heading text-[clamp(3rem,11vw,8.5rem)] font-normal leading-[1.05] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_16px_88px_oklch(0_0_0/0.55)]"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+                className={cn(
+                  "text-center font-heading font-normal leading-[1.06] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_16px_88px_oklch(0_0_0/0.55)]",
+                  wall
+                    ? "mt-4 text-[clamp(2.1rem,8vw,5rem)] md:mt-5"
+                    : "mt-12 text-[clamp(3rem,11vw,8.5rem)]",
+                )}
               >
                 {label}
               </motion.h3>
               <div
-                className="mx-auto mt-14 h-px w-[min(78vw,38rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent"
+                className={cn(
+                  "mx-auto h-px w-[min(78vw,38rem)] bg-gradient-to-r from-transparent via-[var(--kc-gold-muted)]/38 to-transparent",
+                  wall ? "mt-5 md:mt-6" : "mt-14",
+                )}
                 aria-hidden
               />
-              <p className="mt-12 text-center font-mono text-[clamp(1.1rem,2.6vw,1.5rem)] uppercase tracking-[0.18em] text-[var(--kc-cream-dim)]">
+              <p
+                className={cn(
+                  "text-center font-mono uppercase tracking-[0.18em] text-[var(--kc-cream-dim)]",
+                  wall ? "mt-4 text-[clamp(0.95rem,2.2vw,1.25rem)] md:mt-5" : "mt-12 text-[clamp(1.1rem,2.6vw,1.5rem)]",
+                )}
+              >
                 Option {winner}
               </p>
             </ScreenTitleCardFrame>

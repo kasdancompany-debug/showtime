@@ -10,7 +10,11 @@ export type PlaybackSrcStatus = "idle" | "loading" | "ready" | "missing";
 /**
  * Resolves a node's playable URL: remote `videoUrl`, or a blob URL from `localVideoKey` in IndexedDB.
  */
-export function useNodePlaybackSrc(node: StoryNode | undefined): {
+export function useNodePlaybackSrc(
+  node: StoryNode | undefined,
+  /** Bump when graph media is cleared so the same node object cannot keep a stale blob URL. */
+  mediaGeneration = 0,
+): {
   src: string | null;
   status: PlaybackSrcStatus;
 } {
@@ -56,7 +60,7 @@ export function useNodePlaybackSrc(node: StoryNode | undefined): {
     setSrc(remote || null);
     setStatus(remote ? "ready" : "idle");
     return undefined;
-  }, [node]);
+  }, [node, mediaGeneration]);
 
   useEffect(
     () => () => {

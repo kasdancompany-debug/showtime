@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MOCK_EVENT } from "@/lib/mock-data";
-import { broadcastEventSync, subscribeEventSyncWithStatus } from "@/lib/realtime/event-sync";
+import { broadcastEventSync, subscribeEventSync, subscribeEventSyncWithStatus } from "@/lib/realtime/event-sync";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   fetchAudienceMemberIdForCurrentUser,
   fetchEventByCode,
   fetchStoryNode,
   fetchVoteMajority,
+  fetchVoteTallies,
   insertAudienceMember,
-  insertVote,
   isUniqueViolation,
   type RemoteEventRow,
   type RemoteStoryNodeRow,
@@ -19,11 +19,14 @@ import {
 import {
   clearJoinSession,
   loadJoinSession,
+  markVotePending,
+  markVoteSynced,
   newSessionId,
   recordVoteForNode,
   saveJoinSession,
   type JoinSessionPersist,
 } from "@/lib/join/session-storage";
+import { attemptHostedVoteDelivery } from "@/lib/join/vote-sync-http";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { selectVoteDisplayNode } from "@/lib/store/presentation";
 import { getEffectiveWinner } from "@/lib/story-engine/engine";
@@ -40,7 +43,27 @@ type LiveVoteSnapshot = {
   voteNodeId: StoryNodeId | null;
   eventTitle: string;
   allowAnonymousQuickJoin?: boolean;
+  pollDurationSec?: number;
+  pctA?: number;
+  pctB?: number;
+  totalVotes?: number;
+  serverNowMs?: number;
 };
+
+/** Operator broadcast overlay for hosted Supabase events (percentages, clock sync). */
+type HostedVoteBroadcastSlice = Pick<
+  LiveVoteSnapshot,
+  | "phase"
+  | "endsAt"
+  | "totals"
+  | "revealedWinner"
+  | "pollDurationSec"
+  | "pctA"
+  | "pctB"
+  | "totalVotes"
+  | "serverNowMs"
+  | "voteNodeId"
+>;
 
 export type JoinScreen =
   | "landing"
@@ -66,6 +89,8 @@ export function useJoinRoom(eventCodeRaw: string) {
   const mockEngine = useMockEventStore((s) => s.engine);
   const mockVotePhase = useMockEventStore((s) => s.votePhase);
   const mockTitle = useMockEventStore((s) => s.eventTitle);
+  const mockVotesA = useMockEventStore((s) => s.votesA);
+  const mockVotesB = useMockEventStore((s) => s.votesB);
   const mockCast = useMockEventStore((s) => s.castAudienceVote);
   const mockRegister = useMockEventStore((s) => s.registerAudienceMember);
 
@@ -86,7 +111,12 @@ export function useJoinRoom(eventCodeRaw: string) {
   const [online, setOnline] = useState(true);
   const [voteSubmitting, setVoteSubmitting] = useState(false);
   const [liveVote, setLiveVote] = useState<LiveVoteSnapshot | null>(null);
+  const [hostedTallies, setHostedTallies] = useState<{ a: number; b: number } | null>(null);
+  const [hostedPollEndsAt, setHostedPollEndsAt] = useState<number | null>(null);
+  const [hostedVoteBroadcast, setHostedVoteBroadcast] = useState<HostedVoteBroadcastSlice | null>(null);
+  const hostedVoteRoundRef = useRef<string | null>(null);
   const [serverVoteDuplicateHint, setServerVoteDuplicateHint] = useState<string | null>(null);
+  const autoJoinAttemptedRef = useRef(false);
 
   useEffect(() => {
     setPersist(loadJoinSession(code));
@@ -166,6 +196,8 @@ export function useJoinRoom(eventCodeRaw: string) {
   }, [supabase, code]);
 
   const eventId = remoteEvent?.id;
+  const remoteEventRef = useRef(remoteEvent);
+  remoteEventRef.current = remoteEvent;
 
   /* ----- Postgres realtime: remote events ----- */
   useEffect(() => {
@@ -234,6 +266,11 @@ export function useJoinRoom(eventCodeRaw: string) {
         voteNodeId: p.voteNodeId ?? null,
         eventTitle: p.eventTitle ?? "",
         allowAnonymousQuickJoin: p.allowAnonymousQuickJoin,
+        pollDurationSec: p.pollDurationSec,
+        pctA: p.pctA,
+        pctB: p.pctB,
+        totalVotes: p.totalVotes,
+        serverNowMs: p.serverNowMs,
       });
     }, (st) => {
       if (st === "connecting") setJoinTransportStatus("connecting");
@@ -244,10 +281,104 @@ export function useJoinRoom(eventCodeRaw: string) {
     });
   }, [supabase, syncEventId, isHybridMock, transportRetryNonce]);
 
+  /* ----- Hosted: merge operator broadcast (percentages / countdown hints) ----- */
+  useEffect(() => {
+    if (!supabase || !eventId || isHybridMock) return;
+
+    return subscribeEventSync(supabase, eventId, (p) => {
+      if (p.type !== "vote") return;
+      const ev = remoteEventRef.current;
+      const activeId = ev?.active_vote_id;
+      if (!activeId || (p.voteNodeId != null && p.voteNodeId !== activeId)) return;
+
+      setHostedVoteBroadcast({
+        phase: p.phase,
+        endsAt: p.endsAt,
+        totals: p.totals,
+        revealedWinner: p.revealedWinner,
+        pollDurationSec: p.pollDurationSec,
+        pctA: p.pctA,
+        pctB: p.pctB,
+        totalVotes: p.totalVotes,
+        serverNowMs: p.serverNowMs,
+        voteNodeId: p.voteNodeId ?? null,
+      });
+    });
+  }, [supabase, eventId, isHybridMock, transportRetryNonce]);
+
+  /* ----- Hosted: live tallies from Postgres ----- */
+  useEffect(() => {
+    if (!supabase || !eventId || isHybridMock) return;
+
+    const channel = supabase
+      .channel(`join-votes-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes", filter: `event_id=eq.${eventId}` },
+        async () => {
+          const ev = remoteEventRef.current;
+          const vid = ev?.active_vote_id;
+          if (!vid || ev?.status !== "voting") return;
+          try {
+            const t = await fetchVoteTallies(supabase, ev.id, vid);
+            setHostedTallies(t);
+          } catch {
+            /* ignore */
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [supabase, eventId, isHybridMock, transportRetryNonce]);
+
+  useEffect(() => {
+    if (!supabase || !eventId || isHybridMock || !remoteEvent) return;
+    const storyNodeId = remoteEvent.active_vote_id;
+    if (remoteEvent.status !== "voting" || !storyNodeId) {
+      setHostedTallies(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const t = await fetchVoteTallies(supabase, remoteEvent.id, storyNodeId);
+        if (!cancelled) setHostedTallies(t);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, eventId, isHybridMock, remoteEvent]);
+
+  useEffect(() => {
+    if (!remoteEvent || isHybridMock) return;
+    const voting = remoteEvent.status === "voting" && Boolean(remoteEvent.active_vote_id);
+    if (!voting) {
+      hostedVoteRoundRef.current = null;
+      setHostedPollEndsAt(null);
+      setHostedVoteBroadcast(null);
+      return;
+    }
+    const roundKey = `${remoteEvent.id}:${remoteEvent.active_vote_id}`;
+    if (hostedVoteRoundRef.current === roundKey) return;
+    hostedVoteRoundRef.current = roundKey;
+    setHostedVoteBroadcast(null);
+    if (remoteEvent.vote_ends_at) {
+      setHostedPollEndsAt(new Date(remoteEvent.vote_ends_at).getTime());
+    } else {
+      setHostedPollEndsAt(Date.now() + 30 * 1000);
+    }
+  }, [remoteEvent, isHybridMock]);
+
   const mockVoteNode = useMemo(() => selectVoteDisplayNode(mockEngine), [mockEngine]);
   const mockWinner = mockVotePhase === "reveal" ? getEffectiveWinner(mockEngine) : null;
   const mockVoteEndsAt = useMockEventStore((s) => s.voteEndsAt);
-  const pollDurationSec = useMockEventStore((s) => s.pollDurationSec);
+  const mockPollDurationSec = useMockEventStore((s) => s.pollDurationSec);
 
   const activeStoryNodeId =
     isHybridMock ? liveVote?.voteNodeId ?? null
@@ -301,12 +432,77 @@ export function useJoinRoom(eventCodeRaw: string) {
     setServerVoteDuplicateHint(null);
   }, [activeStoryNodeId]);
 
-  /** Poll closes at (ms); hybrid/live broadcast carries endsAt; pure local demo uses mock store; hosted Supabase events omit until schema adds a column. */
+  /** Poll closes at (ms): hybrid broadcast, hosted `vote_ends_at` / operator broadcast / synthetic fallback, or local demo store. */
   const voteEndsAt = useMemo(() => {
     if (isHybridMock) return liveVote?.endsAt ?? null;
-    if (supabase && remoteEvent) return null;
-    return mockVoteEndsAt;
-  }, [isHybridMock, liveVote?.endsAt, supabase, remoteEvent, mockVoteEndsAt]);
+    if (supabase && remoteEvent && voteOpen && activeStoryNodeId) {
+      if (remoteEvent.vote_ends_at) return new Date(remoteEvent.vote_ends_at).getTime();
+      if (hostedVoteBroadcast?.endsAt != null) return hostedVoteBroadcast.endsAt;
+      return hostedPollEndsAt;
+    }
+    if (!supabase || !remoteEvent) return mockVoteEndsAt;
+    return null;
+  }, [
+    isHybridMock,
+    liveVote?.endsAt,
+    supabase,
+    remoteEvent,
+    voteOpen,
+    activeStoryNodeId,
+    mockVoteEndsAt,
+    hostedPollEndsAt,
+    hostedVoteBroadcast?.endsAt,
+  ]);
+
+  const pollDurationSecResolved = useMemo(() => {
+    if (isHybridMock) return liveVote?.pollDurationSec ?? mockPollDurationSec;
+    if (supabase && remoteEvent) return hostedVoteBroadcast?.pollDurationSec ?? 30;
+    return mockPollDurationSec;
+  }, [isHybridMock, liveVote?.pollDurationSec, supabase, remoteEvent, hostedVoteBroadcast?.pollDurationSec, mockPollDurationSec]);
+
+  const liveTotals = useMemo(() => {
+    if (isHybridMock && liveVote) return liveVote.totals;
+    if (isHybridMock) return { a: 0, b: 0 };
+    if (supabase && remoteEvent && voteOpen && activeStoryNodeId) {
+      return hostedTallies ?? { a: 0, b: 0 };
+    }
+    if (!supabase || !remoteEvent) return { a: mockVotesA, b: mockVotesB };
+    return { a: 0, b: 0 };
+  }, [
+    isHybridMock,
+    liveVote,
+    supabase,
+    remoteEvent,
+    voteOpen,
+    activeStoryNodeId,
+    hostedTallies,
+    mockVotesA,
+    mockVotesB,
+  ]);
+
+  const livePctA = useMemo(() => {
+    if (isHybridMock && liveVote?.phase === "open" && liveVote.pctA != null) {
+      return liveVote.pctA;
+    }
+    if (!isHybridMock && voteOpen && hostedVoteBroadcast?.pctA != null) {
+      return hostedVoteBroadcast.pctA;
+    }
+    const t = liveTotals.a + liveTotals.b;
+    if (!t) return 50;
+    return (liveTotals.a / t) * 100;
+  }, [isHybridMock, liveVote, voteOpen, hostedVoteBroadcast, liveTotals.a, liveTotals.b]);
+
+  const livePctB = useMemo(() => {
+    if (isHybridMock && liveVote?.phase === "open" && liveVote.pctB != null) {
+      return liveVote.pctB;
+    }
+    if (!isHybridMock && voteOpen && hostedVoteBroadcast?.pctB != null) {
+      return hostedVoteBroadcast.pctB;
+    }
+    const t = liveTotals.a + liveTotals.b;
+    if (!t) return 50;
+    return (liveTotals.b / t) * 100;
+  }, [isHybridMock, liveVote, voteOpen, hostedVoteBroadcast, liveTotals.a, liveTotals.b]);
 
   const screen: JoinScreen = useMemo(() => {
     if (!hydrated) return "landing";
@@ -369,6 +565,26 @@ export function useJoinRoom(eventCodeRaw: string) {
     !bootstrapFailed &&
     (joinTransportStatus === "channel_error" || joinTransportStatus === "timed_out");
 
+  /** HTTP tally poll when the main Realtime channel is down but the guest can still POST votes. */
+  useEffect(() => {
+    if (!supabase || !eventId || isHybridMock || !joinRealtimeDown || !voteOpen || !activeStoryNodeId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const t = await fetchVoteTallies(supabase, eventId, activeStoryNodeId);
+        if (!cancelled) setHostedTallies(t);
+      } catch {
+        /* ignore */
+      }
+    };
+    void tick();
+    const id = window.setInterval(tick, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [supabase, eventId, isHybridMock, joinRealtimeDown, voteOpen, activeStoryNodeId]);
+
   /** Full-screen reconnect only before guest has a saved seat; joined guests see an inline banner instead. */
   const joinRealtimeBlocking = joinRealtimeDown && !persist?.joined;
 
@@ -384,6 +600,91 @@ export function useJoinRoom(eventCodeRaw: string) {
     saveJoinSession(next);
     setPersist(next);
   }, []);
+
+  /** Hosted DB delivery + HTTP fallback */
+  const syncPendingHostedVotes = useCallback(async () => {
+    if (!online || !supabase || !remoteEvent || isHybridMock) return;
+    const latest = loadJoinSession(code);
+    if (!latest?.joined || !latest.audienceMemberId) return;
+    const pending = latest.voteOutboundStatus;
+    if (!pending) return;
+    for (const [nodeId, st] of Object.entries(pending)) {
+      if (st !== "pending") continue;
+      const choice = latest.votesByNodeId[nodeId];
+      if (!choice) continue;
+      const r = await attemptHostedVoteDelivery(supabase, {
+        eventId: remoteEvent.id,
+        storyNodeId: nodeId,
+        audienceMemberId: latest.audienceMemberId,
+        choice,
+      });
+      if (r === "ok" || r === "duplicate") {
+        const cur = loadJoinSession(code);
+        if (cur) mergePersist(markVoteSynced(cur, nodeId));
+      }
+    }
+  }, [online, supabase, remoteEvent, isHybridMock, code, mergePersist]);
+
+  /** Hybrid mock night: broadcast retries */
+  const syncPendingHybridBroadcast = useCallback(async () => {
+    if (!online || !supabase || !isHybridMock || !syncEventId) return;
+    const latest = loadJoinSession(code);
+    if (!latest?.joined) return;
+    const pending = latest.voteOutboundStatus;
+    if (!pending) return;
+    for (const [nodeId, st] of Object.entries(pending)) {
+      if (st !== "pending") continue;
+      const choice = latest.votesByNodeId[nodeId];
+      if (!choice) continue;
+      const clientVoteId = `${latest.sessionId}:${nodeId}`;
+      try {
+        await broadcastEventSync(supabase, syncEventId, {
+          type: "audience_vote",
+          clientVoteId,
+          choice,
+        });
+        const cur = loadJoinSession(code);
+        if (cur) mergePersist(markVoteSynced(cur, nodeId));
+      } catch {
+        /* next interval */
+      }
+    }
+  }, [online, supabase, isHybridMock, syncEventId, code, mergePersist]);
+
+  useEffect(() => {
+    const tick = () => {
+      void syncPendingHostedVotes();
+      void syncPendingHybridBroadcast();
+    };
+    tick();
+    const id = window.setInterval(tick, 5500);
+    window.addEventListener("online", tick);
+    return () => {
+      window.removeEventListener("online", tick);
+      window.clearInterval(id);
+    };
+  }, [syncPendingHostedVotes, syncPendingHybridBroadcast]);
+
+  useEffect(() => {
+    if (!voteOpen) return;
+    void syncPendingHostedVotes();
+    void syncPendingHybridBroadcast();
+  }, [voteOpen, syncPendingHostedVotes, syncPendingHybridBroadcast]);
+
+  useEffect(() => {
+    if (!joinRealtimeDown || !voteOpen) return;
+    void syncPendingHostedVotes();
+  }, [joinRealtimeDown, voteOpen, syncPendingHostedVotes]);
+
+  const retryPendingVoteSync = useCallback(() => {
+    void syncPendingHostedVotes();
+    void syncPendingHybridBroadcast();
+  }, [syncPendingHostedVotes, syncPendingHybridBroadcast]);
+
+  const activeVoteOutboundStatus = useMemo((): "pending" | "synced" | null => {
+    if (!activeStoryNodeId || !persist?.votesByNodeId[activeStoryNodeId]) return null;
+    return persist.voteOutboundStatus?.[activeStoryNodeId] === "pending" ? "pending" : "synced";
+  }, [activeStoryNodeId, persist]);
 
   const joinRoom = useCallback(
     async (displayName: string, tableNumber: string) => {
@@ -428,6 +729,7 @@ export function useJoinRoom(eventCodeRaw: string) {
         joined: true,
         audienceMemberId,
         votesByNodeId: persist?.votesByNodeId ?? {},
+        voteOutboundStatus: persist?.voteOutboundStatus ?? {},
       };
       mergePersist(next);
     },
@@ -435,6 +737,7 @@ export function useJoinRoom(eventCodeRaw: string) {
       persist?.sessionId,
       persist?.votesByNodeId,
       persist?.audienceMemberId,
+      persist?.voteOutboundStatus,
       mergePersist,
       supabase,
       remoteEvent,
@@ -443,39 +746,85 @@ export function useJoinRoom(eventCodeRaw: string) {
     ],
   );
 
+  useEffect(() => {
+    if (!hydrated || !allowAnonymousQuickJoin || !readyToJoin) return;
+    if (persist?.joined) return;
+    if (autoJoinAttemptedRef.current) return;
+    autoJoinAttemptedRef.current = true;
+    void joinRoom("Guest", "").catch(() => {
+      autoJoinAttemptedRef.current = false;
+    });
+  }, [hydrated, allowAnonymousQuickJoin, readyToJoin, persist?.joined, joinRoom]);
+
   const castVote = useCallback(
-    async (choice: VoteChoice): Promise<"ok" | "duplicate" | "blocked"> => {
+    async (choice: VoteChoice): Promise<"ok" | "duplicate" | "blocked" | "queued"> => {
       if (!persist?.joined || !activeStoryNodeId || votedThisRound || voteSubmitting) return "blocked";
 
+      const nodeId = activeStoryNodeId;
       setVoteSubmitting(true);
       try {
-        let duplicate = false;
         if (supabase && remoteEvent && persist.audienceMemberId) {
-          const res = await insertVote(supabase, {
+          mergePersist(markVotePending(persist, code, nodeId, choice));
+          const r = await attemptHostedVoteDelivery(supabase, {
             eventId: remoteEvent.id,
-            storyNodeId: activeStoryNodeId,
+            storyNodeId: nodeId,
             audienceMemberId: persist.audienceMemberId,
             choice,
           });
-          if (res === "duplicate") {
-            duplicate = true;
+          const latest = loadJoinSession(code);
+          if (!latest) {
+            void syncPendingHostedVotes();
+            return "queued";
+          }
+          if (r === "ok") {
+            mergePersist(markVoteSynced(latest, nodeId));
+            return "ok";
+          }
+          if (r === "duplicate") {
+            mergePersist(markVoteSynced(latest, nodeId));
             setServerVoteDuplicateHint(
               "You already voted on this question — your first choice is locked in.",
             );
+            return "duplicate";
           }
-        } else if (supabase && syncEventId) {
-          const clientVoteId = `${persist.sessionId}:${activeStoryNodeId}`;
-          await broadcastEventSync(supabase, syncEventId, {
-            type: "audience_vote",
-            clientVoteId,
-            choice,
-          });
-        } else {
-          mockCast(choice);
+          void syncPendingHostedVotes();
+          return "queued";
         }
-        const next = recordVoteForNode(persist, code, activeStoryNodeId, choice);
-        mergePersist(next);
-        return duplicate ? "duplicate" : "ok";
+
+        if (supabase && syncEventId) {
+          mergePersist(markVotePending(persist, code, nodeId, choice));
+          const clientVoteId = `${persist.sessionId}:${nodeId}`;
+          const send = () =>
+            broadcastEventSync(supabase, syncEventId, {
+              type: "audience_vote",
+              clientVoteId,
+              choice,
+            });
+          try {
+            await send();
+            const latest = loadJoinSession(code);
+            if (latest) mergePersist(markVoteSynced(latest, nodeId));
+            return "ok";
+          } catch {
+            try {
+              await send();
+              const latest = loadJoinSession(code);
+              if (latest) mergePersist(markVoteSynced(latest, nodeId));
+              return "ok";
+            } catch {
+              void syncPendingHybridBroadcast();
+              return "queued";
+            }
+          }
+        }
+
+        mockCast(choice);
+        const next = recordVoteForNode(persist, code, nodeId, choice);
+        mergePersist({
+          ...next,
+          voteOutboundStatus: { ...(next.voteOutboundStatus ?? {}), [nodeId]: "synced" },
+        });
+        return "ok";
       } catch {
         return "blocked";
       } finally {
@@ -493,6 +842,8 @@ export function useJoinRoom(eventCodeRaw: string) {
       mockCast,
       mergePersist,
       code,
+      syncPendingHostedVotes,
+      syncPendingHybridBroadcast,
     ],
   );
 
@@ -562,7 +913,10 @@ export function useJoinRoom(eventCodeRaw: string) {
     joinRealtimeDown,
     joinRealtimeBlocking,
     voteEndsAt,
-    pollDurationSec,
+    pollDurationSec: pollDurationSecResolved,
+    liveTotals,
+    livePctA,
+    livePctB,
     joinsClosed,
     joinsClosedReason,
     acceptingAudienceJoins,
@@ -583,6 +937,8 @@ export function useJoinRoom(eventCodeRaw: string) {
     screen,
     votedThisRound,
     voteSubmitting,
+    activeVoteOutboundStatus,
+    retryPendingVoteSync,
     joinRoom,
     castVote,
     retryRemote: retryBootstrap,

@@ -18,6 +18,8 @@ export interface Database {
           status: EventStatus;
           current_node_id: string | null;
           active_vote_id: string | null;
+          /** Present after migration `20260502100000_events_vote_ends_at`. */
+          vote_ends_at?: string | null;
           /** Present after migration `20260501190000_events_allow_anonymous_quick_join`. */
           allow_anonymous_quick_join?: boolean;
           created_by: string;
@@ -41,6 +43,7 @@ export interface Database {
           status?: EventStatus;
           current_node_id?: string | null;
           active_vote_id?: string | null;
+          vote_ends_at?: string | null;
           allow_anonymous_quick_join?: boolean;
           created_by?: string;
           created_at?: string;

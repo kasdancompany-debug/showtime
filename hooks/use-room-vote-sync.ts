@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { broadcastEventSync, subscribeEventSync } from "@/lib/realtime/event-sync";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -23,24 +23,41 @@ export function useVoteStateBroadcaster() {
 
   const voteNode = useMemo(() => selectVoteDisplayNode(engine), [engine]);
   const allowAnonymousQuickJoin = useMockEventStore((s) => s.allowAnonymousQuickJoin);
+  const pollDurationSec = useMockEventStore((s) => s.pollDurationSec);
+
+  const pushVotePayload = useCallback(() => {
+    if (!client) return;
+    const ta = useMockEventStore.getState().votesA;
+    const tb = useMockEventStore.getState().votesB;
+    const tot = ta + tb;
+    const pctA = tot ? Math.round((ta / tot) * 1000) / 10 : 50;
+    const pctB = tot ? Math.round((tb / tot) * 1000) / 10 : 50;
+    const st = useMockEventStore.getState();
+    const vn = selectVoteDisplayNode(st.engine);
+    void broadcastEventSync(client, st.eventId, {
+      type: "vote",
+      phase: st.votePhase,
+      endsAt: st.voteEndsAt,
+      totals: { a: ta, b: tb },
+      revealedWinner: st.revealedWinner,
+      eventTitle: st.eventTitle,
+      question: vn?.question ?? null,
+      optionALabel: vn?.optionA?.label ?? "Option A",
+      optionBLabel: vn?.optionB?.label ?? "Option B",
+      voteNodeId: st.engine.voteNodeId,
+      allowAnonymousQuickJoin: st.allowAnonymousQuickJoin,
+      pollDurationSec: st.pollDurationSec,
+      pctA,
+      pctB,
+      totalVotes: tot,
+      serverNowMs: Date.now(),
+    });
+  }, [client]);
 
   useEffect(() => {
-    if (!client) return;
-    void broadcastEventSync(client, eventId, {
-      type: "vote",
-      phase: votePhase,
-      endsAt: voteEndsAt,
-      totals: { a: votesA, b: votesB },
-      revealedWinner,
-      eventTitle,
-      question: voteNode?.question ?? null,
-      optionALabel: voteNode?.optionA?.label ?? "Option A",
-      optionBLabel: voteNode?.optionB?.label ?? "Option B",
-      voteNodeId: engine.voteNodeId,
-      allowAnonymousQuickJoin,
-    });
+    pushVotePayload();
   }, [
-    client,
+    pushVotePayload,
     eventId,
     eventTitle,
     votePhase,
@@ -51,7 +68,15 @@ export function useVoteStateBroadcaster() {
     voteNode,
     engine.voteNodeId,
     allowAnonymousQuickJoin,
+    pollDurationSec,
   ]);
+
+  /** ~1 Hz clock + tally heartbeat during open polls (WebSocket fan-out; keeps phones aligned). */
+  useEffect(() => {
+    if (!client || votePhase !== "open") return;
+    const id = window.setInterval(() => pushVotePayload(), 1000);
+    return () => window.clearInterval(id);
+  }, [client, votePhase, pushVotePayload]);
 }
 
 /**

@@ -55,7 +55,13 @@ function subscribeEventSyncInner(
     const ch = client.channel(eventRoomChannel(eventId), {
       config: { broadcast: { ack: false } },
     }).on("broadcast", { event: "sync" }, ({ payload }) => {
-      onMessage(payload as EventRealtimePayload);
+      try {
+        onMessage(payload as EventRealtimePayload);
+      } catch (e) {
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn("[showtime] event-sync handler", e instanceof Error ? e.message : e);
+        }
+      }
     });
     ch.subscribe((status) => {
       if (status === "SUBSCRIBED") onChannelStatus?.("subscribed");
@@ -71,7 +77,13 @@ function subscribeEventSyncInner(
   onChannelStatus?.("idle");
   const bc = getBroadcastChannel(eventId);
   const handler = (ev: MessageEvent<EventRealtimePayload>) => {
-    onMessage(ev.data);
+    try {
+      onMessage(ev.data);
+    } catch (e) {
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn("[showtime] BroadcastChannel handler", e instanceof Error ? e.message : e);
+      }
+    }
   };
   bc.addEventListener("message", handler);
   return () => bc.removeEventListener("message", handler);

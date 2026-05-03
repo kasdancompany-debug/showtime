@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { HostConsole } from "@/components/host/host-console";
+import { HostControlDesk } from "@/components/host/host-control-desk";
 
 export const metadata: Metadata = {
   title: "Operator",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function HostPage() {
-  return <HostConsole />;
+  return <HostControlDesk />;
 }

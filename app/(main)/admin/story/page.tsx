@@ -186,7 +186,7 @@ export default function AdminStoryPage() {
   const pushDeskSuccess = (msg: string) => setDeskBanner(msg);
 
   const loadGraphOnOperator = useCallback(
-    (g: StoryGraph, meta?: { displayName?: string; eventTitle?: string }) => {
+    (g: StoryGraph, meta?: { displayName?: string; eventTitle?: string; savedFilmId?: string | null }) => {
       loadStoryIntoRoom(cloneGraph(g), meta);
       pushDeskSuccess(
         meta?.displayName
@@ -282,7 +282,7 @@ export default function AdminStoryPage() {
 
   const sendFilmToOperator = (film: SavedFilm) => {
     const ng = normalizeStoryGraph(cloneGraph(film.graph));
-    loadGraphOnOperator(ng, { displayName: film.name, eventTitle: film.eventTitle });
+    loadGraphOnOperator(ng, { displayName: film.name, eventTitle: film.eventTitle, savedFilmId: film.id });
   };
 
   const handleSaveDisk = () => {
@@ -528,7 +528,17 @@ export default function AdminStoryPage() {
                             <Button type="button" size="sm" className="h-7 rounded-md px-2 text-[0.65rem]" onClick={() => sendFilmToOperator(film)}>
                               Operator
                             </Button>
-                            <Button type="button" size="sm" variant="ghost" className="h-7 rounded-md px-2 text-destructive" onClick={() => removeSavedFilm(film.id)}>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 rounded-md px-2 text-destructive"
+                              onClick={() => {
+                                removeSavedFilm(film.id);
+                                useMockEventStore.getState().clearActiveFilmIfSavedFilm(film.id);
+                                refreshCatalog();
+                              }}
+                            >
                               <Trash2 className="size-3.5" />
                             </Button>
                           </div>

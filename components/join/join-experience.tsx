@@ -11,9 +11,12 @@ import {
   Lock,
   Radio,
   RefreshCw,
+  Save,
+  Send,
   Ticket,
   Trophy,
   WifiOff,
+  Zap,
 } from "lucide-react";
 
 import { FilmGrain } from "@/components/cinematic/film-grain";
@@ -53,12 +56,18 @@ export function JoinExperience({ eventCode }: Props) {
     voteEndsAt,
     pollDurationSec,
     voteOpen,
+    livePctA,
+    livePctB,
+    liveTotals,
+    activeVoteOutboundStatus,
+    retryPendingVoteSync,
   } = room;
   const [name, setName] = useState(() => room.persist?.displayName ?? "");
   const [table, setTable] = useState(() => room.persist?.tableNumber ?? "");
   const [joining, setJoining] = useState(false);
   const [joinErr, setJoinErr] = useState<string | null>(null);
   const [supabaseGateDismissed, setSupabaseGateDismissed] = useState(false);
+  const [votePickFlash, setVotePickFlash] = useState<VoteChoice | null>(null);
 
   useEffect(() => {
     try {
@@ -121,10 +130,16 @@ export function JoinExperience({ eventCode }: Props) {
   async function handleVote(c: VoteChoice) {
     if (room.voteSubmitting || room.votedThisRound) return;
     hapticMedium();
-    const result = await room.castVote(c);
-    if (result === "ok") hapticSuccess();
-    else if (result === "duplicate") hapticError();
-    else if (result === "blocked") hapticLight();
+    setVotePickFlash(c);
+    try {
+      const result = await room.castVote(c);
+      if (result === "ok") hapticSuccess();
+      else if (result === "duplicate") hapticError();
+      else if (result === "queued") hapticMedium();
+      else if (result === "blocked") hapticLight();
+    } finally {
+      window.setTimeout(() => setVotePickFlash(null), 720);
+    }
   }
 
   useEffect(() => {
@@ -284,28 +299,53 @@ export function JoinExperience({ eventCode }: Props) {
     return (
       <JoinShell>
         <JoinMessageCard
-          leading={<Info className="mx-auto mb-4 size-10 text-sky-400/90" />}
-          title="Live voting is not configured here"
+          leading={<Info className="mx-auto mb-3 size-12 text-sky-400/95 sm:mb-4 sm:size-14" />}
+          title="Phones can’t sync on this site yet"
           subtitle={
-            <>
-              This page was built without{" "}
-              <span className="font-mono text-[0.7rem] text-foreground">NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
-              <span className="font-mono text-[0.7rem] text-foreground">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>. Phones
-              cannot sync with the room until those are set on the server (for example in Vercel environment variables)
-              and the app is redeployed.
-            </>
+            <span className="block space-y-4 text-left sm:text-center">
+              <span className="block text-base font-normal leading-relaxed text-[var(--kc-cream)]/95 md:text-lg">
+                The host needs to turn on the live database connection for this deployment. Until then, votes from this
+                link won’t reach other guests or the big screen.
+              </span>
+              <details className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
+                <summary className="cursor-pointer font-mono text-sm font-semibold uppercase tracking-wider text-[var(--kc-champagne)]/90">
+                  For the person fixing the server
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
+                  Add{" "}
+                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
+                    NEXT_PUBLIC_SUPABASE_URL
+                  </code>{" "}
+                  and{" "}
+                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
+                    NEXT_PUBLIC_SUPABASE_ANON_KEY
+                  </code>{" "}
+                  in Vercel (or your host) environment variables, then redeploy. Set{" "}
+                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
+                    NEXT_PUBLIC_JOIN_ORIGIN
+                  </code>{" "}
+                  to this site’s URL so QR codes match production.
+                </p>
+              </details>
+            </span>
           }
           actions={
             <>
               <GoldButton
                 type="button"
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-xs uppercase tracking-[0.15em]"
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold normal-case tracking-normal [touch-action:manipulation] sm:min-h-[3.75rem] sm:text-lg"
                 onClick={dismissSupabaseGate}
               >
-                Continue anyway (this device only)
+                Try on this phone only
               </GoldButton>
-              <Link href="/" className={cn(buttonVariants({ variant: "outline" }), "inline-flex w-full justify-center rounded-2xl border-white/15")}>
-                Back
+              <Link
+                href="/"
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "inline-flex min-h-14 w-full items-center justify-center rounded-2xl border-white/20 text-base [touch-action:manipulation] sm:min-h-[3.75rem]",
+                )}
+              >
+                Leave
               </Link>
             </>
           }
@@ -317,13 +357,11 @@ export function JoinExperience({ eventCode }: Props) {
   return (
     <JoinShell>
       {room.hydrated && !room.realtimeConfigured && (
-        <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 rounded-2xl border border-sky-500/35 bg-sky-950/90 px-4 py-3 text-sm text-sky-50 shadow-lg backdrop-blur">
-          <p className="font-medium text-sky-100">Supabase env missing</p>
-          <p className="mt-2 leading-relaxed text-sky-100/90">
-            Cross-device voting needs{" "}
-            <span className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_URL</span> and{" "}
-            <span className="font-mono text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>. You dismissed the full notice —
-            only this browser can participate in demo mode.
+        <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 rounded-2xl border border-sky-500/35 bg-sky-950/90 px-4 py-3.5 text-base leading-snug text-sky-50 shadow-lg backdrop-blur sm:px-5">
+          <p className="font-semibold text-sky-50">Live sync is off on this site</p>
+          <p className="mt-2 leading-relaxed text-sky-100/95">
+            You skipped the full notice — only this browser is in demo mode. The host still needs Supabase env vars on
+            the server for real audiences.
           </p>
         </div>
       )}
@@ -354,7 +392,10 @@ export function JoinExperience({ eventCode }: Props) {
           aria-live="assertive"
         >
           <Radio className="size-5 shrink-0 opacity-90" aria-hidden />
-          <span className="min-w-0 flex-1">Reconnecting to the live room… If this lingers, check the network.</span>
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold text-white">Reconnecting…</span> Restoring the live room. If this lingers,
+            check Wi‑Fi and tap Retry.
+          </span>
           <button
             type="button"
             onClick={() => room.retryJoinTransport()}
@@ -387,7 +428,7 @@ export function JoinExperience({ eventCode }: Props) {
         </div>
       )}
 
-      <div className="relative flex min-h-0 flex-1 flex-col px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-8">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-8">
         <header className="mb-8 flex flex-col gap-3 sm:mb-10">
           <div className="flex items-center justify-between gap-4">
             <StudioBadge className="shrink-0 scale-[0.92] sm:scale-95" href="/" showSeal />
@@ -425,7 +466,8 @@ export function JoinExperience({ eventCode }: Props) {
           ) : null}
         </header>
 
-        <AnimatePresence mode="wait">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <AnimatePresence mode="wait">
           {room.screen === "landing" && (
             <LandingScreen
               key="landing"
@@ -467,12 +509,18 @@ export function JoinExperience({ eventCode }: Props) {
               optionA={room.optionALabel}
               optionB={room.optionBLabel}
               onVote={handleVote}
-              disabled={room.voteSubmitting || room.votedThisRound}
+              disabled={room.voteSubmitting || room.votedThisRound || !voteOpen}
               duplicateHint={serverVoteDuplicateHint}
               onDismissDuplicate={dismissDuplicateVoteHint}
               voteEndsAt={voteEndsAt}
               pollDurationSec={pollDurationSec}
               voteOpen={voteOpen}
+              livePctA={livePctA}
+              livePctB={livePctB}
+              liveTotals={liveTotals}
+              reduceMotion={Boolean(reduceMotion)}
+              pickFlash={votePickFlash}
+              voteSubmitting={room.voteSubmitting}
             />
           )}
 
@@ -484,6 +532,19 @@ export function JoinExperience({ eventCode }: Props) {
                   ? room.persist.votesByNodeId[room.activeStoryNodeId]
                   : "A"
               }
+              optionA={room.optionALabel}
+              optionB={room.optionBLabel}
+              livePctA={livePctA}
+              livePctB={livePctB}
+              liveTotals={liveTotals}
+              voteEndsAt={voteEndsAt}
+              pollDurationSec={pollDurationSec}
+              voteOpen={voteOpen}
+              reduceMotion={Boolean(reduceMotion)}
+              outboundStatus={activeVoteOutboundStatus ?? "synced"}
+              onRetrySync={() => retryPendingVoteSync()}
+              offline={!room.online}
+              realtimeDown={joinRealtimeDown}
             />
           )}
 
@@ -495,9 +556,15 @@ export function JoinExperience({ eventCode }: Props) {
               optionA={room.optionALabel}
               optionB={room.optionBLabel}
               reduceMotion={Boolean(reduceMotion)}
+              userChoice={
+                room.activeStoryNodeId && room.persist?.votesByNodeId[room.activeStoryNodeId]
+                  ? room.persist.votesByNodeId[room.activeStoryNodeId]
+                  : null
+              }
             />
           )}
-        </AnimatePresence>
+          </AnimatePresence>
+        </div>
       </div>
     </JoinShell>
   );
@@ -520,18 +587,20 @@ function JoinMessageCard({
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-16"
+      className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-5 py-8 sm:px-6 sm:py-10"
     >
-      <div className="rounded-3xl border border-white/10 bg-black/50 p-8 text-center backdrop-blur-xl">
-        {leading ?? <AlertTriangle className="mx-auto mb-4 size-10 text-amber-400/90" />}
-        <p className="font-heading text-2xl leading-snug">{title}</p>
-        <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
+      <div className="rounded-3xl border border-white/10 bg-black/55 p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-8">
+        {leading ?? <AlertTriangle className="mx-auto mb-3 size-11 text-amber-400/90 sm:mb-4 sm:size-12" />}
+        <h1 className="font-heading text-pretty text-[clamp(1.35rem,4.8vw,1.85rem)] font-normal leading-snug tracking-tight text-[var(--kc-cream)] sm:text-3xl">
+          {title}
+        </h1>
+        <div className="mt-4 text-base leading-relaxed text-muted-foreground md:mt-5 md:text-lg">{subtitle}</div>
         {detail ? (
-          <p className="mt-4 break-words rounded-xl border border-white/10 bg-white/5 px-3 py-2 font-mono text-[0.65rem] text-red-200/90">
+          <p className="mt-4 break-words rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-left font-mono text-xs text-red-200/90 sm:text-sm">
             {detail}
           </p>
         ) : null}
-        <div className="mt-8 flex flex-col gap-3">{actions}</div>
+        <div className="mt-6 flex flex-col gap-3 md:mt-8">{actions}</div>
       </div>
     </motion.div>
   );
@@ -557,6 +626,105 @@ function useVoteSecondsLeft(endsAt: number | null, active: boolean) {
   }, [active, endsAt]);
   if (!active || !endsAt) return null;
   return Math.max(0, Math.ceil((endsAt - now) / 1000));
+}
+
+function voteBarSpringDamping(stiffness: number): number {
+  if (stiffness >= 160) return 18;
+  if (stiffness >= 110) return 20;
+  return 22;
+}
+
+function LiveAudienceBars({
+  pctA,
+  pctB,
+  optionA,
+  optionB,
+  compact,
+  barStiffness,
+  leadingSide,
+  neckAndNeck,
+  finaleMode,
+}: {
+  pctA: number;
+  pctB: number;
+  optionA: string;
+  optionB: string;
+  compact?: boolean;
+  barStiffness: number;
+  leadingSide: "A" | "B" | "tie" | null;
+  neckAndNeck: boolean;
+  finaleMode: boolean;
+}) {
+  const a = Math.min(100, Math.max(0, pctA));
+  const b = Math.min(100, Math.max(0, pctB));
+  const round = (x: number) => Math.round(x);
+
+  return (
+    <div
+      className={cn(
+        "w-full max-w-md rounded-2xl border px-3 py-3 backdrop-blur-md transition-colors duration-300",
+        compact ? "py-2.5" : "py-3.5",
+        finaleMode
+          ? "border-amber-400/45 bg-[oklch(0.09_0.03_48/0.85)] shadow-[0_0_40px_oklch(0.72_0.12_78/0.18)]"
+          : neckAndNeck
+            ? "border-rose-400/35 bg-black/45 shadow-[0_0_28px_oklch(0.55_0.15_25/0.12)]"
+            : "border-white/12 bg-black/35",
+      )}
+      aria-live="polite"
+      aria-label="Live audience split"
+    >
+      <p className="mb-2 flex items-center justify-center gap-2 text-center font-mono text-[0.58rem] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)]">
+        <Zap className={cn("size-3.5 shrink-0", finaleMode && "text-amber-300")} aria-hidden />
+        Live pulse · ~1s refresh
+      </p>
+      <div className={cn("space-y-2.5", compact && "space-y-2")}>
+        <div
+          className={cn(
+            "rounded-lg px-1 py-0.5 transition-shadow duration-300",
+            leadingSide === "A" && "shadow-[inset_0_0_20px_oklch(0.78_0.12_78/0.15)]",
+          )}
+        >
+          <div className="flex justify-between gap-2 text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--kc-cream)]">
+            <span className="min-w-0 truncate">A · {optionA}</span>
+            <span className="shrink-0 tabular-nums text-[var(--kc-champagne)]">{round(a)}%</span>
+          </div>
+          <div className="mt-1 h-3 overflow-hidden rounded-full bg-white/10">
+            <motion.div
+              className={cn(
+                "h-full rounded-full bg-[linear-gradient(90deg,oklch(0.62_0.13_28),oklch(0.52_0.11_35))]",
+                finaleMode && "brightness-110",
+              )}
+              initial={false}
+              animate={{ width: `${a}%` }}
+              transition={{ type: "spring", stiffness: barStiffness, damping: voteBarSpringDamping(barStiffness) }}
+            />
+          </div>
+        </div>
+        <div
+          className={cn(
+            "rounded-lg px-1 py-0.5 transition-shadow duration-300",
+            leadingSide === "B" && "shadow-[inset_0_0_20px_oklch(0.62_0.12_195/0.18)]",
+          )}
+        >
+          <div className="flex justify-between gap-2 text-[0.7rem] font-semibold uppercase tracking-wide text-[var(--kc-cream)]">
+            <span className="min-w-0 truncate">B · {optionB}</span>
+            <span className="shrink-0 tabular-nums text-[oklch(0.72_0.12_195/0.95)]">{round(b)}%</span>
+          </div>
+          <div className="mt-1 h-3 overflow-hidden rounded-full bg-white/10">
+            <motion.div
+              className={cn(
+                "h-full rounded-full bg-[linear-gradient(90deg,oklch(0.52_0.1_200),oklch(0.42_0.09_230))]",
+                finaleMode && "brightness-110",
+              )}
+              initial={false}
+              animate={{ width: `${b}%` }}
+              transition={{ type: "spring", stiffness: barStiffness, damping: voteBarSpringDamping(barStiffness) }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function LandingScreen({
@@ -788,12 +956,15 @@ function WaitingScreen({
       <h2 className="mt-5 font-heading text-[clamp(1.5rem,6vw,2.25rem)] font-normal leading-tight tracking-tight text-[var(--kc-cream)]">
         {title}
       </h2>
-      <p className="mx-auto mt-8 max-w-[min(34ch,92vw)] text-pretty text-[clamp(1.05rem,4.2vw,1.3rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-        The house lights hold… Sit tight — when it’s time to choose, your ballot will appear here.
+      <p className="mx-auto mt-6 max-w-[min(36ch,92vw)] text-pretty text-[clamp(1.15rem,4.5vw,1.45rem)] font-semibold leading-snug text-[var(--kc-cream)]">
+        Waiting for the next decision…
+      </p>
+      <p className="mx-auto mt-4 max-w-[min(34ch,92vw)] text-pretty text-[clamp(0.98rem,3.9vw,1.15rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+        Keep this page open. When the host opens the vote, your ballot appears automatically — nothing else to tap.
       </p>
       <p
         className={cn(
-          "mx-auto mt-6 max-w-[min(36ch,94vw)] text-[clamp(0.95rem,3.8vw,1.15rem)] leading-snug",
+          "mx-auto mt-5 max-w-[min(36ch,94vw)] text-[clamp(0.9rem,3.6vw,1.05rem)] leading-snug",
           connection === "live" ? "text-[var(--kc-champagne)]/90" : "text-amber-200/95",
         )}
       >
@@ -837,6 +1008,12 @@ function VotingScreen({
   voteEndsAt,
   pollDurationSec,
   voteOpen,
+  livePctA,
+  livePctB,
+  liveTotals,
+  reduceMotion,
+  pickFlash,
+  voteSubmitting,
 }: {
   question: string;
   optionA: string;
@@ -848,50 +1025,224 @@ function VotingScreen({
   voteEndsAt: number | null;
   pollDurationSec: number;
   voteOpen: boolean;
+  livePctA: number;
+  livePctB: number;
+  liveTotals: { a: number; b: number };
+  reduceMotion: boolean;
+  pickFlash: VoteChoice | null;
+  voteSubmitting: boolean;
 }) {
-  const secondsLeft = useVoteSecondsLeft(voteEndsAt, voteOpen);
+  const motionSafe = Boolean(reduceMotion);
+  const [fallbackEndsAt, setFallbackEndsAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (!voteOpen || voteEndsAt != null) {
+      setFallbackEndsAt(null);
+      return;
+    }
+    const id = window.setTimeout(() => setFallbackEndsAt(Date.now() + Math.max(5, pollDurationSec) * 1000), 0);
+    return () => window.clearTimeout(id);
+  }, [voteOpen, voteEndsAt, pollDurationSec]);
+
+  const countdownEnd = voteEndsAt ?? fallbackEndsAt;
+  const secondsLeft = useVoteSecondsLeft(countdownEnd, voteOpen);
   const ringMax = Math.max(8, pollDurationSec);
   const ringFrac =
     secondsLeft !== null ? Math.min(1, Math.max(0, secondsLeft / ringMax)) : 1;
+  const displaySeconds = secondsLeft ?? (voteOpen ? Math.max(0, pollDurationSec) : null);
+
+  const finalFive = Boolean(secondsLeft !== null && secondsLeft <= 5 && secondsLeft > 0 && voteOpen);
+  const energyRise = Boolean(secondsLeft !== null && secondsLeft <= 12 && secondsLeft > 5 && voteOpen);
+  const totalCast = liveTotals.a + liveTotals.b;
+  const neckAndNeck =
+    totalCast >= 6 && Math.abs(livePctA - livePctB) <= 10 && livePctA > 0 && livePctB > 0;
+
+  let leadingSide: "A" | "B" | "tie" | null = null;
+  if (totalCast > 0) {
+    if (Math.abs(livePctA - livePctB) < 0.55) leadingSide = "tie";
+    else leadingSide = livePctA > livePctB ? "A" : "B";
+  }
+
+  const barStiffness = motionSafe ? 220 : finalFive ? 175 : energyRise || neckAndNeck ? 125 : 85;
+
+  const energyPhase =
+    finalFive ? ("finale" as const) : energyRise || neckAndNeck ? ("rise" as const) : ("idle" as const);
+
+  const spreadPct = Math.abs(livePctA - livePctB);
+  /** Honest social proof: clear lean from live counts only; hide when the race is tight */
+  const showSocialProofLean =
+    voteOpen &&
+    totalCast >= 8 &&
+    leadingSide !== null &&
+    leadingSide !== "tie" &&
+    !neckAndNeck &&
+    spreadPct >= 12;
+  const leanLetter = leadingSide === "A" ? "A" : leadingSide === "B" ? "B" : "";
+  const softTension =
+    voteOpen &&
+    totalCast >= 6 &&
+    !neckAndNeck &&
+    spreadPct > 10 &&
+    spreadPct <= 18 &&
+    livePctA > 0 &&
+    livePctB > 0;
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-      className="mx-auto flex w-full max-w-xl flex-1 flex-col px-0 pb-4 pt-2"
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{
+        opacity: 1,
+        scale: 1,
+        ...(motionSafe || !finalFive ? {} : { x: [0, -1.5, 1.5, -1, 1, 0] }),
+      }}
+      exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.35 } }}
+      transition={{
+        duration: 0.22,
+        ease: [0.22, 1, 0.36, 1],
+        x: finalFive ? { duration: 0.42, repeat: Infinity, ease: "easeInOut" } : undefined,
+      }}
+      className="relative mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col overflow-hidden px-0 pb-1 pt-0"
     >
-      <p className="text-center font-mono text-[clamp(0.68rem,3vw,0.8rem)] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)]">
-        {kcCopy.castYourVote}
-      </p>
-      <h2 className="mx-auto mt-5 max-w-[min(22ch,92vw)] text-balance text-center font-heading text-[clamp(1.35rem,6.5vw,2rem)] font-normal leading-[1.15] text-[var(--kc-cream)]">
-        {question}
-      </h2>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[45%] bg-[radial-gradient(ellipse_at_50%_0%,oklch(0.55_0.08_78/0.14),transparent_62%)] opacity-90" aria-hidden />
 
-      {secondsLeft !== null ? (
-        <div className="mx-auto mt-8 flex w-full max-w-xs flex-col items-center">
-          <CountdownMedallion
-            variant="default"
-            seconds={secondsLeft}
-            fraction={ringFrac}
-            label="Ballot closes in"
-            className="scale-[0.92] sm:scale-100"
-          />
-        </div>
-      ) : (
-        <p className="mx-auto mt-8 max-w-sm text-center font-mono text-[clamp(0.8rem,3.2vw,0.95rem)] uppercase tracking-[0.14em] text-[var(--kc-cream-dim)]">
-          Tap A or B once — your vote locks in.
+      <div className="relative z-[1] flex flex-col items-center px-1">
+        <motion.div
+          layoutId="join-live-vote-badge"
+          className="inline-flex items-center gap-2 rounded-full border border-amber-400/45 bg-[oklch(0.12_0.03_48/0.88)] px-4 py-1.5 font-mono text-[0.58rem] font-bold uppercase tracking-[0.32em] text-amber-100 shadow-[0_0_24px_oklch(0.72_0.12_78/0.25)]"
+          animate={
+            motionSafe
+              ? {}
+              : {
+                  boxShadow: [
+                    "0 0 12px oklch(0.72 0.12 78 / 0.15)",
+                    "0 0 28px oklch(0.78 0.14 78 / 0.38)",
+                    "0 0 12px oklch(0.72 0.12 78 / 0.15)",
+                  ],
+                }
+          }
+          transition={{ duration: finalFive ? 0.55 : 1.4, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-500/70 opacity-70" />
+            <span className="relative inline-flex size-2 rounded-full bg-red-500" />
+          </span>
+          Live vote
+        </motion.div>
+
+        <p className="mx-auto mt-2 max-w-[min(36ch,94vw)] text-center font-mono text-[0.58rem] font-semibold uppercase tracking-[0.26em] text-[var(--kc-cream-dim)]/92">
+          The audience is deciding…
         </p>
-      )}
+
+        <motion.h2
+          layout="position"
+          className="mx-auto mt-2 max-w-[min(26ch,94vw)] text-balance text-center font-heading text-[clamp(1.45rem,7vw,2.35rem)] font-semibold leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_6px_36px_oklch(0_0_0/0.55)]"
+          initial={false}
+          animate={motionSafe ? {} : finalFive ? { scale: [1, 1.02, 1] } : {}}
+          transition={{ duration: 0.55, repeat: finalFive ? Infinity : 0, ease: "easeInOut" }}
+        >
+          {question}
+        </motion.h2>
+
+        <p className="mx-auto mt-2 max-w-[min(34ch,94vw)] text-center text-[clamp(0.82rem,3.5vw,0.98rem)] font-medium leading-snug text-[var(--kc-champagne)]/95">
+          Your pick steers the story — choose now.
+        </p>
+
+        {neckAndNeck && voteOpen ? (
+          <div className="mx-auto mt-2 max-w-[min(38ch,94vw)] space-y-1.5 text-center">
+            <motion.p
+              animate={motionSafe ? {} : { opacity: [1, 0.65, 1] }}
+              transition={{ duration: 0.9, repeat: Infinity }}
+              className="text-[clamp(0.78rem,3.2vw,0.92rem)] font-semibold uppercase tracking-[0.14em] text-rose-200/95"
+            >
+              Too close to call — every tap shifts the room
+            </motion.p>
+            <p className="text-[clamp(0.74rem,3vw,0.88rem)] leading-snug text-[var(--kc-cream-dim)]/95">
+              Neither path owns the night yet — the next votes could flip it either way.
+            </p>
+          </div>
+        ) : softTension ? (
+          <p className="mx-auto mt-2 max-w-[min(36ch,94vw)] text-center text-[clamp(0.76rem,3.1vw,0.9rem)] leading-snug text-[var(--kc-champagne)]/88">
+            Still a live contest — the lean could narrow before the ballot closes.
+          </p>
+        ) : null}
+
+        {displaySeconds !== null ? (
+          <div className="mx-auto mt-2 flex w-full flex-col items-center">
+            {finalFive ? (
+              <motion.div
+                className="flex flex-col items-center"
+                animate={motionSafe ? {} : { scale: [1, 1.06, 1] }}
+                transition={{ duration: 0.45, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <p className="font-mono text-[0.62rem] font-bold uppercase tracking-[0.38em] text-amber-200">
+                  Final seconds
+                </p>
+                <span
+                  className={cn(
+                    "mt-1 font-heading tabular-nums leading-none tracking-tight drop-shadow-[0_8px_40px_oklch(0_0_0/0.5)]",
+                    "text-[clamp(4rem,18vw,7rem)] text-amber-100",
+                  )}
+                  aria-hidden
+                >
+                  {displaySeconds}
+                </span>
+              </motion.div>
+            ) : null}
+            <div className={cn(finalFive ? "mt-2 opacity-95" : "mt-1")}>
+              <CountdownMedallion
+                variant="default"
+                seconds={displaySeconds}
+                fraction={secondsLeft !== null ? ringFrac : 1}
+                label={finalFive ? "Room closes in" : secondsLeft !== null ? "Decision closes in" : "Decision window"}
+                className={cn(finalFive ? "scale-[0.72] opacity-90 sm:scale-[0.78]" : "scale-[0.88] sm:scale-[0.95]")}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {!finalFive && secondsLeft !== null && secondsLeft <= 10 && secondsLeft > 0 && !disabled && voteOpen ? (
+          <motion.p
+            animate={motionSafe ? {} : { opacity: [1, 0.45, 1] }}
+            transition={{ duration: 0.75, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mt-2 max-w-[min(34ch,94vw)] text-center text-[clamp(0.92rem,4vw,1.08rem)] font-semibold leading-snug text-amber-200"
+            role="status"
+          >
+            Decision closing — tap A or B
+          </motion.p>
+        ) : null}
+      </div>
+
+      <div className="relative z-[1] mx-auto mt-2 w-full min-w-0 max-w-md shrink-0 px-0">
+        <LiveAudienceBars
+          pctA={livePctA}
+          pctB={livePctB}
+          optionA={optionA}
+          optionB={optionB}
+          compact
+          barStiffness={barStiffness}
+          leadingSide={leadingSide}
+          neckAndNeck={neckAndNeck}
+          finaleMode={finalFive}
+        />
+        {showSocialProofLean ? (
+          <p className="mt-2 text-pretty text-center text-[clamp(0.72rem,3.1vw,0.84rem)] leading-snug text-[var(--kc-cream-dim)]/90">
+            <span className="font-medium text-[var(--kc-cream)]/85">Most ballots here lean toward Option {leanLetter}</span>
+            <span className="text-[var(--kc-cream-dim)]"> — live counts only; yours still shifts the story.</span>
+          </p>
+        ) : null}
+        <p className="mt-1.5 text-center font-mono text-[0.58rem] uppercase tracking-[0.14em] text-[var(--kc-cream-dim)]/90">
+          Ballots in this room: {totalCast}
+          {voteSubmitting ? <span className="text-[var(--kc-champagne)]"> · Locking yours…</span> : null}
+        </p>
+      </div>
 
       {duplicateHint ? (
-        <div className="mx-auto mt-6 w-full max-w-md rounded-2xl border border-sky-500/40 bg-sky-950/55 px-4 py-4 text-center text-[clamp(0.95rem,3.5vw,1.05rem)] leading-snug text-sky-50">
+        <div className="relative z-[1] mx-auto mt-2 w-full max-w-md rounded-2xl border border-sky-500/40 bg-sky-950/55 px-3 py-3 text-center text-[clamp(0.9rem,3.4vw,1rem)] leading-snug text-sky-50">
           <p>{duplicateHint}</p>
           {onDismissDuplicate ? (
             <button
               type="button"
-              className="mt-4 min-h-11 rounded-full bg-white/10 px-5 py-2 font-mono text-sm font-semibold uppercase tracking-wide text-sky-100 [touch-action:manipulation]"
+              className="mt-3 min-h-11 rounded-full bg-white/10 px-5 py-2 font-mono text-sm font-semibold uppercase tracking-wide text-sky-100 [touch-action:manipulation]"
               onClick={onDismissDuplicate}
             >
               OK
@@ -900,38 +1251,218 @@ function VotingScreen({
         </div>
       ) : null}
 
-      <div className="mt-10 grid w-full flex-1 grid-cols-1 gap-4 min-[480px]:grid-cols-2 min-[480px]:gap-4">
-        <VoteOptionCard variant="hero" side="A" label={optionA} disabled={disabled} onPick={() => onVote("A")} />
-        <VoteOptionCard variant="hero" side="B" label={optionB} disabled={disabled} onPick={() => onVote("B")} />
+      <div className="relative z-[1] mt-auto grid min-h-0 w-full flex-1 grid-cols-2 gap-2.5 px-0.5 pt-2 [grid-auto-rows:minmax(7.25rem,1fr)] sm:gap-3">
+        <VoteOptionCard
+          variant="hero"
+          side="A"
+          label={optionA}
+          disabled={disabled}
+          onPick={() => onVote("A")}
+          cinematicActive={voteOpen && !disabled}
+          energyPhase={energyPhase}
+          isLeading={leadingSide === "A"}
+          neckAndNeck={neckAndNeck}
+          pickFlash={pickFlash === "A"}
+          reduceMotion={motionSafe}
+        />
+        <VoteOptionCard
+          variant="hero"
+          side="B"
+          label={optionB}
+          disabled={disabled}
+          onPick={() => onVote("B")}
+          cinematicActive={voteOpen && !disabled}
+          energyPhase={energyPhase}
+          isLeading={leadingSide === "B"}
+          neckAndNeck={neckAndNeck}
+          pickFlash={pickFlash === "B"}
+          reduceMotion={motionSafe}
+        />
       </div>
     </motion.section>
   );
 }
 
-function VoteReceivedScreen({ choice }: { choice: VoteChoice }) {
+function VoteReceivedScreen({
+  choice,
+  optionA,
+  optionB,
+  livePctA,
+  livePctB,
+  liveTotals,
+  voteEndsAt,
+  pollDurationSec,
+  voteOpen,
+  reduceMotion,
+  outboundStatus,
+  onRetrySync,
+  offline,
+  realtimeDown,
+}: {
+  choice: VoteChoice;
+  optionA: string;
+  optionB: string;
+  livePctA: number;
+  livePctB: number;
+  liveTotals: { a: number; b: number };
+  voteEndsAt: number | null;
+  pollDurationSec: number;
+  voteOpen: boolean;
+  reduceMotion: boolean;
+  outboundStatus: "pending" | "synced";
+  onRetrySync: () => void;
+  offline: boolean;
+  realtimeDown: boolean;
+}) {
+  const secondsLeft = useVoteSecondsLeft(voteEndsAt, voteOpen);
+  const ringMax = Math.max(8, pollDurationSec);
+  const ringFrac =
+    secondsLeft !== null ? Math.min(1, Math.max(0, secondsLeft / ringMax)) : 1;
+  const pickedLabel = choice === "A" ? optionA : optionB;
+  const finalFive = Boolean(voteOpen && secondsLeft !== null && secondsLeft <= 5 && secondsLeft > 0);
+  const energyRise = Boolean(voteOpen && secondsLeft !== null && secondsLeft <= 12 && secondsLeft > 5);
+  const totalCast = liveTotals.a + liveTotals.b;
+  const neckAndNeck =
+    totalCast >= 6 && Math.abs(livePctA - livePctB) <= 10 && livePctA > 0 && livePctB > 0;
+  let leadingSide: "A" | "B" | "tie" | null = null;
+  if (totalCast > 0) {
+    if (Math.abs(livePctA - livePctB) < 0.55) leadingSide = "tie";
+    else leadingSide = livePctA > livePctB ? "A" : "B";
+  }
+  const barStiffness = reduceMotion ? 220 : finalFive ? 175 : energyRise || neckAndNeck ? 125 : 85;
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center px-2 py-12 text-center"
+      className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col items-center justify-center overflow-hidden px-1 py-6 text-center sm:py-8"
     >
       <motion.div
-        initial={{ scale: 0.85 }}
-        animate={{ scale: 1 }}
-        className="mb-10 flex size-[min(28vw,7.5rem)] max-h-32 min-h-[6rem] items-center justify-center rounded-full border-2 border-[var(--kc-champagne)]/45 bg-[oklch(0.14_0.03_48/0.65)] shadow-[0_0_64px_oklch(0.72_0.1_78/0.22)]"
+        initial={{ scale: 0.75, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="relative mb-5 flex size-[min(26vw,6.75rem)] max-h-[6.75rem] min-h-[5.5rem] items-center justify-center rounded-full border-2 border-[var(--kc-champagne)]/55 bg-[oklch(0.16_0.04_78/0.75)] shadow-[0_0_48px_oklch(0.72_0.1_78/0.28)]"
       >
-        <Lock className="size-[min(11vw,3rem)] text-[var(--kc-champagne)]" strokeWidth={2} />
+        {!reduceMotion ? (
+          <motion.span
+            className="pointer-events-none absolute inset-0 rounded-full border-2 border-[var(--kc-champagne)]/25"
+            animate={{ scale: [1, 1.08, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          />
+        ) : null}
+        <CheckCircle2 className="relative z-[1] size-[min(12vw,3.25rem)] text-[var(--kc-champagne)]" strokeWidth={2} aria-hidden />
       </motion.div>
-      <CheckCircle2 className="mx-auto mb-5 size-14 text-[var(--kc-champagne)]" strokeWidth={1.75} />
-      <h2 className="font-heading text-[clamp(1.75rem,7vw,2.5rem)] font-normal leading-tight">{kcCopy.voteCast}</h2>
-      <p className="mx-auto mt-5 max-w-[min(34ch,92vw)] text-pretty text-[clamp(1.05rem,4vw,1.2rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-        {kcCopy.counting}
+      <p className="font-mono text-[0.62rem] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)]">
+        Locked in
       </p>
-      <p className="mt-8 rounded-2xl border border-white/12 bg-white/[0.05] px-6 py-4 text-[clamp(1rem,4vw,1.15rem)] text-[var(--kc-cream)]">
-        Locked in: <span className="font-semibold text-[var(--kc-champagne)]">Option {choice}</span>
+      <h2 className="mt-2 font-heading text-[clamp(1.5rem,6.5vw,2.1rem)] font-normal leading-tight text-[var(--kc-cream)]">
+        Your vote is in
+      </h2>
+      <p className="mx-auto mt-2 max-w-[min(34ch,94vw)] text-[clamp(0.95rem,3.8vw,1.05rem)] leading-snug text-[var(--kc-cream-dim)]">
+        The audience is still deciding — you’re already counted. Watch how the room tilts.
       </p>
-      <p className="mx-auto mt-8 max-w-sm text-[clamp(0.95rem,3.8vw,1.05rem)] text-[var(--kc-cream-dim)]">
-        The house lights hold… we’ll show you the room’s choice when the host reveals it.
+
+      <div
+        className="mx-auto mt-5 w-full max-w-md rounded-2xl border border-[var(--kc-champagne)]/25 bg-[oklch(0.12_0.03_78/0.35)] px-4 py-3.5 text-center shadow-[0_12px_40px_oklch(0_0_0/0.28)]"
+        role="status"
+      >
+        <p className="font-mono text-[0.58rem] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)]/90">
+          Your choice
+        </p>
+        <p className="mt-2 font-heading text-[clamp(1.35rem,5.5vw,1.85rem)] font-semibold leading-tight text-[var(--kc-cream)]">
+          You chose Option {choice}
+        </p>
+        <p className="mt-1 text-pretty text-[clamp(0.95rem,3.6vw,1.08rem)] leading-snug text-[var(--kc-champagne)]/95">
+          {pickedLabel}
+        </p>
+      </div>
+
+      <div className="mx-auto mt-4 w-full max-w-md px-1">
+        {outboundStatus === "pending" ? (
+          <div
+            className="rounded-2xl border border-amber-400/50 bg-amber-950/40 px-4 py-3.5 text-left shadow-[0_12px_40px_oklch(0_0_0/0.35)]"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="flex items-center gap-2 text-[clamp(1rem,3.8vw,1.12rem)] font-semibold leading-snug text-amber-50">
+              <Save className="size-5 shrink-0 text-amber-200" aria-hidden />
+              Vote saved locally
+            </p>
+            <p className="mt-2 text-[clamp(0.88rem,3.3vw,1rem)] leading-relaxed text-amber-100/92">
+              Your choice is stored on this phone. We’re retrying automatically — when the network cooperates, it reaches
+              the screening (including a simple HTTPS backup if live sync is flaky).
+            </p>
+            {(offline || realtimeDown) && (
+              <p className="mt-2 flex items-start gap-2 text-[0.85rem] leading-snug text-amber-200/88">
+                <WifiOff className="mt-0.5 size-4 shrink-0 opacity-90" aria-hidden />
+                Connection unstable — keep this tab open; no need to tap again.
+              </p>
+            )}
+            <GoldButton
+              type="button"
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-[0.75rem] font-semibold uppercase tracking-[0.14em] [touch-action:manipulation]"
+              onClick={() => onRetrySync()}
+            >
+              <RefreshCw className="size-4" aria-hidden />
+              Try sending now
+            </GoldButton>
+            <p className="mt-3 text-[0.72rem] leading-snug text-amber-200/75">
+              If this never clears before the poll ends, tell the host how you voted — your phone already recorded it.
+            </p>
+          </div>
+        ) : (
+          <div
+            className="rounded-2xl border border-emerald-500/45 bg-emerald-950/35 px-4 py-3.5 text-left shadow-[0_12px_40px_oklch(0_0_0/0.3)]"
+            role="status"
+            aria-live="polite"
+          >
+            <p className="flex items-center gap-2 text-[clamp(1rem,3.8vw,1.12rem)] font-semibold leading-snug text-emerald-50">
+              <Send className="size-5 shrink-0 text-emerald-200" aria-hidden />
+              Your vote is in
+            </p>
+            <p className="mt-2 text-[clamp(0.88rem,3.3vw,1rem)] leading-relaxed text-emerald-100/90">
+              You’re in the official count for this question — nothing else to tap.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <p className="mx-auto mt-4 max-w-[min(34ch,94vw)] text-pretty text-[clamp(0.95rem,3.9vw,1.1rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+        Waiting with everyone else — the host seals the ballot when the room is ready.
+      </p>
+
+      {voteOpen && secondsLeft !== null ? (
+        <div className="mx-auto mt-4 flex w-full max-w-[10rem] flex-col items-center">
+          <CountdownMedallion
+            variant="default"
+            seconds={secondsLeft}
+            fraction={ringFrac}
+            label="Closes in"
+            className="scale-[0.82]"
+          />
+        </div>
+      ) : null}
+
+      <div className="mx-auto mt-4 w-full max-w-md px-0">
+        <LiveAudienceBars
+          pctA={livePctA}
+          pctB={livePctB}
+          optionA={optionA}
+          optionB={optionB}
+          compact
+          barStiffness={barStiffness}
+          leadingSide={leadingSide}
+          neckAndNeck={neckAndNeck}
+          finaleMode={finalFive}
+        />
+      </div>
+
+      <p className="mx-auto mt-4 max-w-[min(36ch,94vw)] rounded-2xl border border-white/14 bg-white/[0.06] px-4 py-3 text-[clamp(0.88rem,3.5vw,1rem)] leading-snug text-[var(--kc-cream-dim)]">
+        <Lock className="mb-1 inline size-4 text-[var(--kc-champagne)] align-text-bottom" aria-hidden /> Ballot sealed on this
+        phone — no need to tap again.
+      </p>
+      <p className="mx-auto mt-3 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--kc-cream-dim)]">
+        Total ballots so far: {liveTotals.a + liveTotals.b}
       </p>
     </motion.section>
   );
@@ -943,14 +1474,18 @@ function ResultsScreen({
   optionA,
   optionB,
   reduceMotion,
+  userChoice,
 }: {
   winner: VoteChoice | null;
   tie: boolean;
   optionA: string;
   optionB: string;
   reduceMotion: boolean;
+  userChoice: VoteChoice | null;
 }) {
   const label = winner === "A" ? optionA : winner === "B" ? optionB : null;
+  const alignedWithRoom = Boolean(userChoice && winner && userChoice === winner && !tie);
+  const votedOtherPath = Boolean(userChoice && winner && userChoice !== winner && !tie);
   return (
     <motion.section
       initial={{ opacity: 0, y: 16 }}
@@ -975,6 +1510,14 @@ function ResultsScreen({
           <p className="mx-auto mt-5 max-w-[min(36ch,94vw)] text-pretty text-[clamp(1.05rem,4vw,1.25rem)] leading-relaxed text-[var(--kc-cream-dim)]">
             The tally tied — the host picks the thread on the big screen.
           </p>
+          <p className="mx-auto mt-8 max-w-[min(34ch,94vw)] text-pretty text-[clamp(1rem,3.9vw,1.15rem)] font-medium leading-snug text-[var(--kc-champagne)]/95">
+            Every vote held tension — your choice changes everything.
+          </p>
+          {userChoice ? (
+            <p className="mx-auto mt-3 max-w-[min(36ch,94vw)] text-pretty text-[clamp(0.95rem,3.8vw,1.08rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+              You picked Option {userChoice} — part of a dead-even crowd.
+            </p>
+          ) : null}
         </>
       ) : (
         <>
@@ -989,6 +1532,23 @@ function ResultsScreen({
           <p className="mx-auto mt-6 max-w-[min(34ch,94vw)] text-pretty text-[clamp(1.15rem,4.5vw,1.5rem)] leading-snug text-[var(--kc-champagne)]">
             {label}
           </p>
+          <div className="mx-auto mt-8 max-w-[min(36ch,94vw)] space-y-3">
+            <p className="text-pretty text-[clamp(1.05rem,4vw,1.2rem)] font-medium leading-snug text-[var(--kc-champagne)]">
+              Your choice changes everything.
+            </p>
+            {userChoice ? (
+              alignedWithRoom ? (
+                <p className="text-pretty text-[clamp(0.95rem,3.8vw,1.08rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+                  You stood with Option {userChoice} — same path the room chose together.
+                </p>
+              ) : votedOtherPath ? (
+                <p className="text-pretty text-[clamp(0.95rem,3.8vw,1.08rem)] leading-relaxed text-[var(--kc-cream-dim)]">
+                  You backed Option {userChoice}; the house leaned another way — both threads mattered to the moment you
+                  just lived.
+                </p>
+              ) : null
+            ) : null}
+          </div>
         </>
       )}
       <p className="mx-auto mt-10 max-w-[min(36ch,94vw)] text-[clamp(0.95rem,3.8vw,1.1rem)] leading-relaxed text-[var(--kc-cream-dim)]">

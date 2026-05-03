@@ -43,3 +43,14 @@ export async function deleteLocalVideoBlob(key: string): Promise<void> {
     tx.objectStore(STORE).delete(key);
   });
 }
+
+/** Nuclear wipe of cached beat videos (used by “Reset local show data”). */
+export async function clearAllLocalVideoBlobs(): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB clear failed"));
+    tx.objectStore(STORE).clear();
+  });
+}

@@ -39,7 +39,7 @@ function missingMediaCount(graph: Parameters<typeof validateGraph>[0]) {
   return n;
 }
 
-export function HostRehearsalPanel() {
+export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: boolean }) {
   const diagnostics = useShowtimeHostDiagnostics();
   const syncMode = useMemo(() => getShowtimeSyncMode(), []);
 
@@ -165,6 +165,185 @@ export function HostRehearsalPanel() {
     rehearsalResetToOpeningBeat();
   }, [rehearsalResetToOpeningBeat]);
 
+  const sections = (
+    <>
+      <section className={cn(embedInDesk ? "space-y-2" : "space-y-3")}>
+        <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">Preflight</p>
+        <ul className={cn(embedInDesk ? "space-y-2" : "space-y-3")}>
+          {checklist.map((row) => (
+            <li
+              key={row.id}
+              className={cn(
+                "flex gap-2 border",
+                embedInDesk ? "rounded-lg px-3 py-2" : "gap-3 rounded-2xl px-4 py-3",
+                row.ok ? "border-emerald-500/35 bg-emerald-500/[0.07]" : "border-amber-500/35 bg-amber-500/[0.07]",
+              )}
+            >
+              {row.ok ? (
+                <CheckCircle2 className={cn("mt-0.5 shrink-0 text-emerald-400", embedInDesk ? "size-4" : "size-5")} aria-hidden />
+              ) : (
+                <CircleAlert className={cn("mt-0.5 shrink-0 text-amber-300", embedInDesk ? "size-4" : "size-5")} aria-hidden />
+              )}
+              <div className="min-w-0">
+                <p className={cn("font-medium text-foreground", embedInDesk && "text-sm")}>{row.label}</p>
+                <p className={cn("mt-0.5 leading-relaxed text-muted-foreground", embedInDesk ? "text-xs" : "mt-1 text-sm")}>{row.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {!productionValidation.ok ? (
+          <p
+            className={cn(
+              "rounded-lg border border-[var(--bn-line)] bg-card/40 text-muted-foreground",
+              embedInDesk ? "px-3 py-2 text-xs" : "rounded-xl px-4 py-3 text-sm",
+            )}
+          >
+            <strong className="text-foreground">Production graph check</strong> —{" "}
+            {productionValidation.ok ? "OK" : productionValidation.errors.slice(0, 2).join(" · ")}
+            {!productionValidation.ok && productionValidation.errors.length > 2
+              ? ` (+${productionValidation.errors.length - 2} more)`
+              : null}
+          </p>
+        ) : null}
+      </section>
+
+      <section className={cn("grid sm:grid-cols-2", embedInDesk ? "gap-2" : "gap-4")}>
+        <div className={cn("rounded-xl border border-[var(--bn-line)] bg-card/50", embedInDesk ? "p-3" : "rounded-2xl p-4")}>
+          <p className="mb-2 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
+            <ScanLine className="size-4" />
+            Demo story
+          </p>
+          <Button
+            type="button"
+            className={cn("w-full font-semibold", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl text-base")}
+            onClick={loadDemo}
+          >
+            Load 3-node demo (no videos)
+          </Button>
+          <p className="mt-1.5 text-xs text-muted-foreground">Replaces the live graph in this tab with a branching sample.</p>
+        </div>
+        <div className={cn("rounded-xl border border-[var(--bn-line)] bg-card/50", embedInDesk ? "p-3" : "rounded-2xl p-4")}>
+          <p className="mb-2 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
+            <Radio className="size-4" />
+            Dry run
+          </p>
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--bn-line)] bg-black/20",
+              embedInDesk ? "px-3 py-2" : "gap-3 px-4 py-3",
+            )}
+          >
+            <input
+              type="checkbox"
+              className={cn("mt-0.5 shrink-0 rounded border-[var(--bn-line)]", embedInDesk ? "size-4" : "mt-1 size-5")}
+              checked={dryRunMode}
+              onChange={(e) => setDryRunMode(e.target.checked)}
+            />
+            <span className={cn("leading-relaxed text-muted-foreground", embedInDesk ? "text-xs" : "text-sm")}>
+              <strong className="text-foreground">Advance without phones</strong> — closing an empty poll auto-picks Option A so you can reach reveal and advance. Real ties still need you.
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section className={cn("rounded-xl border border-[var(--bn-line)] bg-card/50", embedInDesk ? "p-3" : "rounded-2xl p-4")}>
+        <p className="mb-2 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
+          <Users className="size-4" />
+          Fake audience
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn("font-semibold", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl")}
+            onClick={() => rehearsalAddFakeAudience(10)}
+          >
+            +10
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn("font-semibold", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl")}
+            onClick={() => rehearsalAddFakeAudience(50)}
+          >
+            +50
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            className={cn("font-semibold", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl")}
+            onClick={() => rehearsalAddFakeAudience(200)}
+          >
+            +200
+          </Button>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn("mt-2 w-full border-[var(--bn-line)]", embedInDesk ? "h-9 rounded-lg text-sm" : "mt-3 min-h-12 rounded-xl text-base")}
+          onClick={() => rehearsalSimulateRandomVotes()}
+        >
+          <Shuffle className="mr-2 size-4" />
+          Simulate random votes (open poll)
+        </Button>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Headcount is cosmetic unless you run random votes — we spray up to 500 tallies or match your headcount (min 24).
+        </p>
+      </section>
+
+      <section className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="destructive"
+          className={embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl text-base"}
+          onClick={confirmRehearsalReset}
+        >
+          <RefreshCw className="mr-2 size-4" />
+          Reset run (votes + audience + opening beat)
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn("border-[var(--bn-line)]", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl text-base")}
+          onClick={exportReport}
+        >
+          <Download className="mr-2 size-4" />
+          Export report
+        </Button>
+      </section>
+
+      <section
+        className={cn(
+          "rounded-xl border border-[var(--bn-line)] bg-black/20 font-mono text-muted-foreground",
+          embedInDesk ? "px-3 py-2 text-xs" : "rounded-2xl px-4 py-3 text-sm",
+        )}
+      >
+        <p>
+          <MonitorPlay className="mr-2 inline size-4 align-text-bottom text-primary" />
+          Report rounds: <strong className="text-foreground">{reportSegments.length}</strong> · Audience:{" "}
+          <strong className="text-foreground">{audienceConnected}</strong> · Playhead:{" "}
+          <strong className="text-foreground">{getNode(graph, currentNodeId)?.title ?? currentNodeId}</strong> · Phase:{" "}
+          <strong className="text-foreground">{engine.phase}</strong>
+        </p>
+        <p className="mt-1.5 flex flex-wrap items-center gap-2">
+          <Video className="size-4 text-muted-foreground" />
+          <span>{eventTitle}</span>
+          <span className="text-[var(--bn-line)]">|</span>
+          <Wifi className="size-4" />
+          <span>{eventCode}</span>
+        </p>
+      </section>
+    </>
+  );
+
+  if (embedInDesk) {
+    return (
+      <div className="px-1 pb-1">
+        <div className="flex flex-col gap-3">{sections}</div>
+      </div>
+    );
+  }
+
   return (
     <Card className="border-2 border-dashed border-primary/40 bg-gradient-to-b from-primary/[0.07] to-transparent backdrop-blur-xl">
       <CardHeader className="border-b border-[var(--bn-line)] bg-black/10 pb-4">
@@ -176,129 +355,7 @@ export function HostRehearsalPanel() {
           Load a sample graph, simulate phones, dry-run empty polls, run preflight checks, and export a simple vote report — no production data leaves this browser unless you download it.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-8 pt-6">
-        <section className="space-y-3">
-          <p className="font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">Preflight</p>
-          <ul className="space-y-3">
-            {checklist.map((row) => (
-              <li
-                key={row.id}
-                className={cn(
-                  "flex gap-3 rounded-2xl border px-4 py-3",
-                  row.ok ? "border-emerald-500/35 bg-emerald-500/[0.07]" : "border-amber-500/35 bg-amber-500/[0.07]",
-                )}
-              >
-                {row.ok ? (
-                  <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-400" aria-hidden />
-                ) : (
-                  <CircleAlert className="mt-0.5 size-5 shrink-0 text-amber-300" aria-hidden />
-                )}
-                <div className="min-w-0">
-                  <p className="font-medium text-foreground">{row.label}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{row.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {!productionValidation.ok ? (
-            <p className="rounded-xl border border-[var(--bn-line)] bg-card/40 px-4 py-3 text-sm text-muted-foreground">
-              <strong className="text-foreground">Production graph check</strong> —{" "}
-              {productionValidation.ok ? "OK" : productionValidation.errors.slice(0, 2).join(" · ")}
-              {!productionValidation.ok && productionValidation.errors.length > 2
-                ? ` (+${productionValidation.errors.length - 2} more)`
-                : null}
-            </p>
-          ) : null}
-        </section>
-
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--bn-line)] bg-card/50 p-4">
-            <p className="mb-3 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
-              <ScanLine className="size-4" />
-              Demo story
-            </p>
-            <Button type="button" className="min-h-12 w-full rounded-xl text-base font-semibold" onClick={loadDemo}>
-              Load 3-node demo (no videos)
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">Replaces the live graph in this tab with a branching sample.</p>
-          </div>
-          <div className="rounded-2xl border border-[var(--bn-line)] bg-card/50 p-4">
-            <p className="mb-3 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
-              <Radio className="size-4" />
-              Dry run
-            </p>
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--bn-line)] bg-black/20 px-4 py-3">
-              <input
-                type="checkbox"
-                className="mt-1 size-5 shrink-0 rounded border-[var(--bn-line)]"
-                checked={dryRunMode}
-                onChange={(e) => setDryRunMode(e.target.checked)}
-              />
-              <span className="text-sm leading-relaxed text-muted-foreground">
-                <strong className="text-foreground">Advance without phones</strong> — closing an empty poll auto-picks Option A so you can reach reveal and advance. Real ties still need you.
-              </span>
-            </label>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--bn-line)] bg-card/50 p-4">
-          <p className="mb-3 flex items-center gap-2 font-mono text-[0.65rem] uppercase tracking-[0.28em] text-muted-foreground">
-            <Users className="size-4" />
-            Fake audience
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <Button type="button" variant="secondary" className="min-h-12 rounded-xl font-semibold" onClick={() => rehearsalAddFakeAudience(10)}>
-              +10
-            </Button>
-            <Button type="button" variant="secondary" className="min-h-12 rounded-xl font-semibold" onClick={() => rehearsalAddFakeAudience(50)}>
-              +50
-            </Button>
-            <Button type="button" variant="secondary" className="min-h-12 rounded-xl font-semibold" onClick={() => rehearsalAddFakeAudience(200)}>
-              +200
-            </Button>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-3 min-h-12 w-full rounded-xl border-[var(--bn-line)] text-base"
-            onClick={() => rehearsalSimulateRandomVotes()}
-          >
-            <Shuffle className="mr-2 size-4" />
-            Simulate random votes (open poll)
-          </Button>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Headcount is cosmetic unless you run random votes — we spray up to 500 tallies or match your headcount (min 24).
-          </p>
-        </section>
-
-        <section className="flex flex-wrap gap-3">
-          <Button type="button" variant="destructive" className="min-h-12 rounded-xl text-base" onClick={confirmRehearsalReset}>
-            <RefreshCw className="mr-2 size-4" />
-            Reset run (votes + audience + opening beat)
-          </Button>
-          <Button type="button" variant="outline" className="min-h-12 rounded-xl border-[var(--bn-line)] text-base" onClick={exportReport}>
-            <Download className="mr-2 size-4" />
-            Export report
-          </Button>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--bn-line)] bg-black/20 px-4 py-3 font-mono text-sm text-muted-foreground">
-          <p>
-            <MonitorPlay className="mr-2 inline size-4 align-text-bottom text-primary" />
-            Report rounds: <strong className="text-foreground">{reportSegments.length}</strong> · Audience:{" "}
-            <strong className="text-foreground">{audienceConnected}</strong> · Playhead:{" "}
-            <strong className="text-foreground">{getNode(graph, currentNodeId)?.title ?? currentNodeId}</strong> · Phase:{" "}
-            <strong className="text-foreground">{engine.phase}</strong>
-          </p>
-          <p className="mt-2 flex flex-wrap items-center gap-2">
-            <Video className="size-4 text-muted-foreground" />
-            <span>{eventTitle}</span>
-            <span className="text-[var(--bn-line)]">|</span>
-            <Wifi className="size-4" />
-            <span>{eventCode}</span>
-          </p>
-        </section>
-      </CardContent>
+      <CardContent className="space-y-8 pt-6">{sections}</CardContent>
     </Card>
   );
 }

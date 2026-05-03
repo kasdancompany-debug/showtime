@@ -102,12 +102,16 @@ export async function insertVote(
   return "ok" as const;
 }
 
-export async function fetchVoteMajority(
+export async function fetchVoteTallies(
   client: SupabaseClient<Database>,
   eventId: string,
   storyNodeId: string,
-): Promise<{ winner: VoteChoice | null; tie: boolean }> {
-  const { data, error } = await client.from("votes").select("vote_option").eq("event_id", eventId).eq("story_node_id", storyNodeId);
+): Promise<{ a: number; b: number }> {
+  const { data, error } = await client
+    .from("votes")
+    .select("vote_option")
+    .eq("event_id", eventId)
+    .eq("story_node_id", storyNodeId);
   if (error) throw error;
   let a = 0;
   let b = 0;
@@ -115,6 +119,15 @@ export async function fetchVoteMajority(
     if (row.vote_option === "A") a++;
     else b++;
   }
+  return { a, b };
+}
+
+export async function fetchVoteMajority(
+  client: SupabaseClient<Database>,
+  eventId: string,
+  storyNodeId: string,
+): Promise<{ winner: VoteChoice | null; tie: boolean }> {
+  const { a, b } = await fetchVoteTallies(client, eventId, storyNodeId);
   if (a === 0 && b === 0) return { winner: null, tie: false };
   if (a === b) return { winner: null, tie: true };
   return { winner: a > b ? "A" : "B", tie: false };

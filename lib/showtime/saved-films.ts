@@ -30,16 +30,21 @@ function safeParse(raw: string | null): SavedFilm[] {
 function isSavedFilm(x: unknown): x is SavedFilm {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
-  return (
-    typeof o.id === "string" &&
-    typeof o.name === "string" &&
-    typeof o.eventTitle === "string" &&
-    typeof o.savedAt === "number" &&
-    o.graph != null &&
-    typeof o.graph === "object" &&
-    typeof (o.graph as StoryGraph).rootId === "string" &&
-    typeof (o.graph as StoryGraph).nodes === "object"
-  );
+  const g = o.graph as StoryGraph | undefined;
+  if (
+    typeof o.id !== "string" ||
+    typeof o.name !== "string" ||
+    typeof o.eventTitle !== "string" ||
+    typeof o.savedAt !== "number" ||
+    g == null ||
+    typeof g !== "object" ||
+    typeof g.rootId !== "string" ||
+    typeof g.nodes !== "object" ||
+    g.nodes == null
+  ) {
+    return false;
+  }
+  return Boolean(g.nodes[g.rootId]);
 }
 
 export function listSavedFilms(): SavedFilm[] {

@@ -17,6 +17,11 @@ export interface JoinSessionPersist {
   audienceMemberId?: string;
   /** story_node_id → choice for this session (prevents double vote per node). */
   votesByNodeId: Record<string, VoteChoice>;
+  /**
+   * Hosted Supabase / hybrid: whether the choice has been acknowledged by the server (or hybrid broadcast).
+   * Missing entries for a saved vote are treated as synced (legacy sessions).
+   */
+  voteOutboundStatus?: Record<string, "pending" | "synced">;
 }
 
 export function newSessionId(): string {
@@ -35,6 +40,7 @@ export function loadJoinSession(eventCode: string): JoinSessionPersist | null {
     if (parsed.eventCode?.toUpperCase() !== eventCode.toUpperCase()) return null;
     if (!parsed.sessionId) parsed.sessionId = newSessionId();
     if (!parsed.votesByNodeId) parsed.votesByNodeId = {};
+    if (!parsed.voteOutboundStatus) parsed.voteOutboundStatus = {};
     return parsed;
   } catch {
     return null;
@@ -52,7 +58,26 @@ export function saveJoinSession(data: JoinSessionPersist): void {
 
 export function clearJoinSession(eventCode: string): void {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(storageKey(eventCode));
+  try {
+    window.localStorage.removeItem(storageKey(eventCode));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Remove every persisted join session for this origin (prefix scan). */
+export function clearAllJoinSessions(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const drop: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k?.startsWith(`${PREFIX}.`)) drop.push(k);
+    }
+    for (const k of drop) window.localStorage.removeItem(k);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function recordVoteForNode(
@@ -70,9 +95,32 @@ export function recordVoteForNode(
       tableNumber: "",
       joined: false,
       votesByNodeId: {},
+      voteOutboundStatus: {},
     } satisfies JoinSessionPersist);
   return {
     ...base,
     votesByNodeId: { ...base.votesByNodeId, [storyNodeId]: choice },
+    voteOutboundStatus: base.voteOutboundStatus ?? {},
+  };
+}
+
+/** Persist choice immediately and mark delivery as pending (unstable network). */
+export function markVotePending(
+  prev: JoinSessionPersist | null,
+  eventCode: string,
+  storyNodeId: string,
+  choice: VoteChoice,
+): JoinSessionPersist {
+  const withVote = recordVoteForNode(prev, eventCode, storyNodeId, choice);
+  return {
+    ...withVote,
+    voteOutboundStatus: { ...(withVote.voteOutboundStatus ?? {}), [storyNodeId]: "pending" },
+  };
+}
+
+export function markVoteSynced(prev: JoinSessionPersist, storyNodeId: string): JoinSessionPersist {
+  return {
+    ...prev,
+    voteOutboundStatus: { ...(prev.voteOutboundStatus ?? {}), [storyNodeId]: "synced" },
   };
 }

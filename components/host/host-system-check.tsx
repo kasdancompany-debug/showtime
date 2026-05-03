@@ -3,6 +3,7 @@
 import { RefreshCw, RotateCcw, Stethoscope } from "lucide-react";
 import Link from "next/link";
 
+import { HelpBulletedList, InlineHelpPanel } from "@/components/help/inline-help-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -93,6 +94,8 @@ function HostSystemCheckInner(props: HostSystemCheckProps) {
   const ec = props.embeddedCompact && props.embedded;
 
   const voteStatus = `${props.votePhase} · engine ${props.enginePhase}`;
+  const syncTrouble = props.realtimeStatus === "error" && props.supabaseClientConfigured;
+  const eventTrouble = Boolean(props.remoteEventError?.trim());
 
   const screenHb =
     props.lastScreenHeartbeatAt != null
@@ -188,6 +191,106 @@ function HostSystemCheckInner(props: HostSystemCheckProps) {
           </CardContent>
         </Card>
 
+        <div className={cn("space-y-2", ec ? "mt-2" : "mt-3")}>
+          {syncTrouble || eventTrouble ? (
+            <InlineHelpPanel
+              surface="host"
+              defaultOpen
+              summary="Live sync or event row issue"
+              whatThisMeans={
+                <p>
+                  {syncTrouble ? (
+                    <span>
+                      The operator browser lost its Supabase Realtime channel, or the network blocked the websocket.
+                    </span>
+                  ) : null}
+                  {syncTrouble && eventTrouble ? <span> </span> : null}
+                  {eventTrouble ? (
+                    <span>The app could not match this room code to an event row: {props.remoteEventError}</span>
+                  ) : null}
+                </p>
+              }
+              howToFix={
+                <HelpBulletedList
+                  items={[
+                    "Tap “Retry realtime connection” above, wait a few seconds, then check this panel again.",
+                    "Confirm this machine has internet; disable VPNs or strict firewalls briefly to test.",
+                    "In your hosting dashboard, confirm `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are set for Production, then redeploy so the bundle picks them up.",
+                    "In Supabase: confirm the project is running, Realtime is enabled for your tables/channels if you changed defaults, and RLS policies allow the operations this app uses.",
+                  ]}
+                />
+              }
+              commonCauses={
+                <HelpBulletedList
+                  items={[
+                    "Sleeping laptop tab or browser throttling background tabs.",
+                    "Wrong Supabase project URL or rotated anon key not redeployed to Vercel.",
+                    "No `events` row for this `event_code`, or the event was deleted / never created.",
+                  ]}
+                />
+              }
+            />
+          ) : null}
+
+          <InlineHelpPanel
+            surface="host"
+            summary="Supabase URL & anon key (NEXT_PUBLIC_*)"
+            whatThisMeans={
+              <p>
+                Showtime embeds your Supabase <strong className="text-foreground">public</strong> URL and anon key at{" "}
+                <strong className="text-foreground">build</strong> time. They power Realtime and reading the live event
+                row — not a separate docs site inside this app.
+              </p>
+            }
+            howToFix={
+              <HelpBulletedList
+                items={[
+                  "In your host (e.g. Vercel): Settings → Environment Variables → add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for Production.",
+                  "Copy URL and anon key from your Supabase project (Project Settings → API) in another browser tab — no link is required from this screen.",
+                  "Trigger a fresh Production deployment after saving variables, then hard-refresh `/host`.",
+                ]}
+              />
+            }
+            commonCauses={
+              <HelpBulletedList
+                items={[
+                  "Variables added only to Preview, not Production.",
+                  "Typo in variable names (must include `NEXT_PUBLIC_` prefix).",
+                  "Redeploy skipped — old bundles still lack the keys.",
+                ]}
+              />
+            }
+          />
+
+          <InlineHelpPanel
+            surface="host"
+            summary="Join origin & QR codes (NEXT_PUBLIC_JOIN_ORIGIN)"
+            whatThisMeans={
+              <p>
+                Phones scan a URL built from <code className="rounded bg-black/30 px-1 py-px font-mono text-[0.65rem]">NEXT_PUBLIC_JOIN_ORIGIN</code>{" "}
+                plus <code className="rounded bg-black/30 px-1 py-px font-mono text-[0.65rem]">/join/&lt;CODE&gt;</code>. If
+                the origin is wrong, QR codes open the wrong host or localhost.
+              </p>
+            }
+            howToFix={
+              <HelpBulletedList
+                items={[
+                  "Set `NEXT_PUBLIC_JOIN_ORIGIN` to your public site URL with no trailing slash (e.g. `https://your-app.vercel.app`).",
+                  "Redeploy Production, refresh `/host`, re-copy or re-print QR from this desk.",
+                ]}
+              />
+            }
+            commonCauses={
+              <HelpBulletedList
+                items={[
+                  "Origin still points at `http://localhost:3000` — phones on cellular cannot reach it.",
+                  "Using a one-off deployment URL instead of the stable production domain.",
+                ]}
+              />
+            }
+          />
+        </div>
+
         <div className={cn("flex flex-wrap gap-2", ec ? "mt-2 gap-1.5" : "mt-4")}>
           <Button type="button" variant="outline" className="rounded-xl border-[var(--bn-line)]" onClick={() => props.onResyncScreen()}>
             <RefreshCw className="mr-2 size-4" />
@@ -209,20 +312,7 @@ function HostSystemCheckInner(props: HostSystemCheckProps) {
           <Link href="/screen" className={cn(buttonVariants({ variant: "secondary", size: "default" }), "rounded-xl")}>
             Open /screen
           </Link>
-          <a
-            href="https://supabase.com/dashboard"
-            target="_blank"
-            rel="noreferrer"
-            className={cn(buttonVariants({ variant: "ghost", size: "default" }), "rounded-xl text-muted-foreground")}
-          >
-            Supabase dashboard
-          </a>
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-          Add both <code className="rounded bg-black/30 px-1 py-px font-mono text-[0.65rem]">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code className="rounded bg-black/30 px-1 py-px font-mono text-[0.65rem]">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> for Live Supabase. Set{" "}
-          <code className="rounded bg-black/30 px-1 py-px font-mono text-[0.65rem]">NEXT_PUBLIC_JOIN_ORIGIN</code> so QR codes use a reachable URL.
-        </p>
     </>
   );
 }

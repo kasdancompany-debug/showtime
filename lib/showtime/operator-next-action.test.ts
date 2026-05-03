@@ -40,24 +40,10 @@ function ctx(partial: Partial<OperatorActionContext> & { handlers?: OperatorActi
 
 describe("deriveOperatorEventState", () => {
   const base = {
-    projectionSurfaceFault: null as string | null,
     showEnded: false,
     eventStarted: true,
     enginePhase: "idle" as const,
-    playbackIsPlaying: false,
-    playbackPositionSec: 0,
   };
-
-  it("prefers projection fault over other signals", () => {
-    expect(
-      deriveOperatorEventState({
-        ...base,
-        projectionSurfaceFault: "decode failed",
-        showEnded: true,
-        eventStarted: false,
-      }),
-    ).toBe("error");
-  });
 
   it("maps show ended", () => {
     expect(deriveOperatorEventState({ ...base, showEnded: true })).toBe("ended");
@@ -75,26 +61,8 @@ describe("deriveOperatorEventState", () => {
     expect(deriveOperatorEventState({ ...base, enginePhase: "revealed" })).toBe("winner_revealed");
   });
 
-  it("maps idle playback to playing, ready, or paused", () => {
-    expect(
-      deriveOperatorEventState({ ...base, enginePhase: "idle", playbackIsPlaying: true }),
-    ).toBe("playing");
-    expect(
-      deriveOperatorEventState({
-        ...base,
-        enginePhase: "idle",
-        playbackIsPlaying: false,
-        playbackPositionSec: 0,
-      }),
-    ).toBe("ready");
-    expect(
-      deriveOperatorEventState({
-        ...base,
-        enginePhase: "idle",
-        playbackIsPlaying: false,
-        playbackPositionSec: 10,
-      }),
-    ).toBe("paused");
+  it("maps idle engine to ready (playback is external)", () => {
+    expect(deriveOperatorEventState({ ...base, enginePhase: "idle" })).toBe("ready");
   });
 });
 
@@ -111,22 +79,19 @@ describe("getNextOperatorAction", () => {
     expect(r.allowedSecondaryActions).toHaveLength(0);
   });
 
-  it("playing + voteable opens vote", () => {
+  it("ready + voteable opens vote", () => {
     const h = noopHandlers();
-    const r = getNextOperatorAction("playing", ctx({ handlers: h, voteable: true, enginePhase: "idle" }));
+    const r = getNextOperatorAction("ready", ctx({ handlers: h, voteable: true, enginePhase: "idle" }));
     expect(r.primaryActionLabel).toBe("Open Vote");
     expect(r.primaryActionHandler).toBe(h.openVote);
     expect(r.hideTransportPause).toBe(false);
   });
 
-  it("playing without voteable pauses and can hide transport pause duplicate", () => {
+  it("ready without voteable stays at segment (no in-app transport)", () => {
     const h = noopHandlers();
-    const r = getNextOperatorAction(
-      "playing",
-      ctx({ handlers: h, voteable: false, hasPlayableMedia: true, enginePhase: "idle" }),
-    );
-    expect(r.primaryActionLabel).toBe("Pause");
-    expect(r.primaryActionHandler).toBe(h.pause);
+    const r = getNextOperatorAction("ready", ctx({ handlers: h, voteable: false, hasPlayableMedia: true, enginePhase: "idle" }));
+    expect(r.primaryActionLabel).toBe("At segment");
+    expect(r.primaryActionHandler).toBeNull();
     expect(r.hideTransportPause).toBe(true);
   });
 

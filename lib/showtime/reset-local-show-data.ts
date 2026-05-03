@@ -1,7 +1,6 @@
 "use client";
 
 import { clearAllJoinSessions, clearJoinSession } from "@/lib/join/session-storage";
-import { clearAllLocalVideoBlobs } from "@/lib/media/local-video-store";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 
 function safeWarn(scope: string, err: unknown): void {
@@ -11,7 +10,7 @@ function safeWarn(scope: string, err: unknown): void {
 }
 
 /**
- * Clears join sessions, wipes cached local video blobs, then resets operator runtime to the empty story.
+ * Clears join sessions, then resets operator runtime to the empty story.
  * Follower tabs catch up via {@link scheduleRoomSnapshotEmit}.
  */
 export async function resetLocalShowData(): Promise<void> {
@@ -21,11 +20,6 @@ export async function resetLocalShowData(): Promise<void> {
     clearAllJoinSessions();
   } catch (e) {
     safeWarn("resetLocalShowData.joinSessions", e);
-  }
-  try {
-    await clearAllLocalVideoBlobs();
-  } catch (e) {
-    safeWarn("resetLocalShowData.indexedDB", e);
   }
   try {
     useMockEventStore.getState().clearActiveFilm();

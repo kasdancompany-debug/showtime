@@ -1,4 +1,4 @@
-import type { StoryGraph, StoryNode, StoryNodeId } from "@/types";
+import type { StoryBranch, StoryGraph, StoryNode, StoryNodeId } from "@/types";
 import type { VoteChoice } from "@/types";
 
 export function getNode(graph: StoryGraph, id: StoryNodeId): StoryNode | undefined {
@@ -22,19 +22,68 @@ export function nextNodeAfterVote(
   return branch?.nextNodeId ?? null;
 }
 
+/** Filename the operator should roll after `winner` wins at `voteNodeId`. */
+export function nextClipForVoteWinner(
+  graph: StoryGraph,
+  voteNodeId: StoryNodeId,
+  winner: VoteChoice,
+): string | null {
+  const node = graph.nodes[voteNodeId];
+  if (!node) return null;
+  const br = winner === "A" ? node.optionA : node.optionB;
+  return br?.nextClipName?.trim() || null;
+}
+
 export function listNodeIds(graph: StoryGraph): StoryNodeId[] {
   return Object.keys(graph.nodes);
 }
 
-/** Ensure optional fields exist after JSON import / legacy saves. */
+/** Raw JSON may omit clip names (legacy graphs); fills stable defaults. */
+type RawNode = Partial<StoryNode> & {
+  videoUrl?: string | null;
+  localVideoKey?: string | null;
+};
+
+function defaultClipName(raw: RawNode, id: string): string {
+  const o = raw.operatorClipName?.trim();
+  if (o) return o;
+  const base = (raw.title ?? "").trim() || id;
+  return `${base.replace(/\s+/g, "_")}.mp4`;
+}
+
+/** Merge imported / legacy saves into the current story shape (clip names, no video fields). */
 export function normalizeStoryGraph(graph: StoryGraph): StoryGraph {
+  const raw = graph.nodes as Record<string, RawNode>;
+  const clipById: Record<string, string> = {};
+  for (const [id, n] of Object.entries(raw)) {
+    clipById[id] = defaultClipName(n, id);
+  }
+
   const nodes = {} as Record<StoryNodeId, StoryNode>;
-  for (const [k, raw] of Object.entries(graph.nodes)) {
-    const n = raw as StoryNode;
-    nodes[k as StoryNodeId] = {
-      ...n,
+  for (const [id, n] of Object.entries(raw)) {
+    const normalizeBranch = (b: StoryBranch | RawNode["optionA"]): StoryBranch | null => {
+      if (!b || !b.nextNodeId?.trim()) return null;
+      const tid = b.nextNodeId.trim();
+      const nextClip =
+        (b as StoryBranch).nextClipName?.trim() ||
+        clipById[tid] ||
+        `${tid.replace(/\s+/g, "_")}.mp4`;
+      return {
+        label: b.label,
+        nextNodeId: tid as StoryNodeId,
+        nextClipName: nextClip,
+      };
+    };
+
+    nodes[id as StoryNodeId] = {
+      id: (n.id ?? id) as StoryNodeId,
+      title: n.title ?? "",
       subtitle: n.subtitle ?? null,
-      localVideoKey: n.localVideoKey ?? null,
+      operatorClipName: clipById[id]!,
+      question: n.question ?? null,
+      optionA: normalizeBranch(n.optionA ?? null),
+      optionB: normalizeBranch(n.optionB ?? null),
+      isEnd: Boolean(n.isEnd),
     };
   }
   return { rootId: graph.rootId, nodes };
@@ -46,28 +95,24 @@ function beatLabel(node: StoryNode, id: string) {
 }
 
 export type ValidateGraphOptions = {
-  /** When false, skips “missing video” checks (rehearsal graphs / dry assets). Default true. */
+  /** @deprecated Video is not used; ignored. */
   requireMedia?: boolean;
 };
 
 /**
- * Structural + production checks for Story builder and operator load.
+ * Structural checks for Story builder and operator start.
+ * Clips are operator cues only — this app does not validate files exist on disk.
  */
-export function validateGraph(
-  graph: StoryGraph,
-  opts: ValidateGraphOptions = {},
-): { ok: true } | { ok: false; errors: string[] } {
-  const requireMedia = opts.requireMedia !== false;
+export function validateGraph(graph: StoryGraph, opts: ValidateGraphOptions = {}): { ok: true } | { ok: false; errors: string[] } {
+  void opts.requireMedia;
   const errors: string[] = [];
   if (!graph.nodes[graph.rootId]) errors.push("Root beat is missing — graph has no valid starting node.");
 
   for (const [id, node] of Object.entries(graph.nodes)) {
     if (node.id !== id) errors.push(`Node key ${id} does not match node.id ${node.id}`);
 
-    const hasMedia =
-      Boolean(node.videoUrl?.trim()) || Boolean(node.localVideoKey && String(node.localVideoKey).trim());
-    if (requireMedia && !hasMedia) {
-      errors.push(`${beatLabel(node, id)}: add a video URL or a local file for this beat.`);
+    if (!(node.operatorClipName ?? "").trim()) {
+      errors.push(`${beatLabel(node, id)}: add an operator clip name (e.g. 01_Opening.mp4).`);
     }
 
     const hasBranch = Boolean(node.optionA || node.optionB);
@@ -88,6 +133,9 @@ export function validateGraph(
       if (!(branch.label ?? "").trim()) {
         errors.push(`${beatLabel(node, id)}: Option ${side} needs a label for the audience.`);
       }
+      if (!(branch.nextClipName ?? "").trim()) {
+        errors.push(`${beatLabel(node, id)}: Option ${side} needs a “next clip” file name for the operator.`);
+      }
     };
 
     checkBranch("A", node.optionA);
@@ -98,10 +146,10 @@ export function validateGraph(
         errors.push(`${beatLabel(node, id)}: non-ending beats need a vote question.`);
       }
       if (!node.optionA) {
-        errors.push(`${beatLabel(node, id)}: add Option A (label + next beat) for this fork.`);
+        errors.push(`${beatLabel(node, id)}: add Option A (label + next beat + next clip) for this fork.`);
       }
       if (!node.optionB) {
-        errors.push(`${beatLabel(node, id)}: add Option B (label + next beat) for this fork.`);
+        errors.push(`${beatLabel(node, id)}: add Option B (label + next beat + next clip) for this fork.`);
       }
     }
   }
@@ -109,7 +157,7 @@ export function validateGraph(
   return errors.length ? { ok: false, errors } : { ok: true };
 }
 
-/** Duplicate one beat (same branch wiring and media keys). Returns null if source missing. */
+/** Duplicate one beat (same branch wiring). Returns null if source missing. */
 export function duplicateNodeInGraph(
   graph: StoryGraph,
   sourceId: StoryNodeId,

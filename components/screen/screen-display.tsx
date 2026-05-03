@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Expand, Eye, EyeOff, MoreHorizontal, X } from "lucide-react";
+import { Expand, MoreHorizontal, X } from "lucide-react";
 
 import { FilmGrain } from "@/components/cinematic/film-grain";
 import {
@@ -13,14 +13,11 @@ import {
 } from "@/components/kasdan";
 import { MarqueeLightBar } from "@/components/screen/marquee-light-bar";
 import { ScreenTitleCardFrame } from "@/components/screen/screen-title-card-frame";
-import { ScreenVideo } from "@/components/screen/screen-video";
 import { useEventRoomPlaybackSync } from "@/hooks/use-event-room-playback-sync";
 import { useRoomStoryInboundSync } from "@/hooks/use-room-story-sync";
 import { useScreenChannelStatus } from "@/hooks/use-screen-channel-status";
 import { useScreenSurfaceHeartbeat } from "@/hooks/use-screen-surface-heartbeat";
 import { useAudienceVoteIngest, useVoteStateBroadcaster } from "@/hooks/use-room-vote-sync";
-import { broadcastEventSync } from "@/lib/realtime/event-sync";
-import { useNodePlaybackSrc } from "@/hooks/use-node-playback-src";
 import { kcCopy } from "@/lib/design/kasdan-hollywood-tokens";
 import { getEffectiveWinner, isAtEndingNode, needsHostChoice } from "@/lib/story-engine/engine";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
@@ -94,7 +91,7 @@ export function ScreenDisplay() {
   const reduceMotion = useReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const eventId = useMockEventStore((s) => s.eventId);
-  const { sendPlaybackTelemetry, client: roomSyncClient } = useEventRoomPlaybackSync("screen");
+  useEventRoomPlaybackSync("screen");
   const { status: channelStatus, usesSupabase } = useScreenChannelStatus();
   useScreenSurfaceHeartbeat(eventId);
   useVoteStateBroadcaster();
@@ -107,7 +104,6 @@ export function ScreenDisplay() {
   const eventCode = useMockEventStore((s) => s.eventCode);
   const eventStarted = useMockEventStore((s) => s.eventStarted);
   const showEnded = useMockEventStore((s) => s.showEnded);
-  const playback = useMockEventStore((s) => s.playback);
   const votePhase = useMockEventStore((s) => s.votePhase);
   const countdownSec = useMockEventStore((s) => s.countdownSec);
   const countdownPresetSec = useMockEventStore((s) => s.countdownPresetSec);
@@ -117,37 +113,14 @@ export function ScreenDisplay() {
   const votesB = useMockEventStore((s) => s.votesB);
   const revealedWinner = useMockEventStore((s) => s.revealedWinner);
   const tickCountdown = useMockEventStore((s) => s.tickCountdown);
-  const pauseSegment = useMockEventStore((s) => s.pauseSegment);
   const startEvent = useMockEventStore((s) => s.startEvent);
-  const playSegment = useMockEventStore((s) => s.playSegment);
   const currentNodeId = useMockEventStore((s) => s.currentNodeId);
-  const mediaGeneration = useMockEventStore((s) => s.mediaGeneration);
   const node = useMemo(() => getNode(graph, currentNodeId), [graph, currentNodeId]);
-  const { src: videoSrc, status: playbackSrcStatus } = useNodePlaybackSrc(node, mediaGeneration);
   const voteNode = useMemo(() => selectVoteDisplayNode(engine), [engine]);
   const endingNode = useMemo(() => isAtEndingNode(engine), [engine]);
 
-  const [endingPlayedOut, setEndingPlayedOut] = useState(false);
-  const [choiceIncoming, setChoiceIncoming] = useState(false);
-  const [videoLoadFailed, setVideoLoadFailed] = useState(false);
-  const [questionPrimed, setQuestionPrimed] = useState<{
-    question: string;
-    labelA: string;
-    labelB: string;
-  } | null>(null);
-  const questionOpenTimerRef = useRef<number | null>(null);
   const autoRevealKeyRef = useRef<string | null>(null);
   const autoAdvanceKeyRef = useRef<string | null>(null);
-  const projectionErrorBroadcastRef = useRef<string | null>(null);
-
-  const [videoFit, setVideoFit] = useState<"contain" | "cover">(() => {
-    if (typeof window === "undefined") return "contain";
-    try {
-      return sessionStorage.getItem("showtime-screen-video-fit") === "cover" ? "cover" : "contain";
-    } catch {
-      return "contain";
-    }
-  });
 
   const [testDisplay, setTestDisplay] = useState(false);
   const [dockOpen, setDockOpen] = useState(false);
@@ -162,63 +135,6 @@ export function ScreenDisplay() {
       setTestDisplay(false);
     }
   }, []);
-
-  useEffect(() => {
-    setEndingPlayedOut(false);
-    setChoiceIncoming(false);
-    setVideoLoadFailed(false);
-    setQuestionPrimed(null);
-    projectionErrorBroadcastRef.current = null;
-    if (questionOpenTimerRef.current) {
-      window.clearTimeout(questionOpenTimerRef.current);
-      questionOpenTimerRef.current = null;
-    }
-  }, [currentNodeId]);
-
-  useEffect(() => {
-    if (votePhase !== "idle") setChoiceIncoming(false);
-  }, [votePhase]);
-
-  useEffect(() => {
-    if (playbackSrcStatus === "missing") setVideoLoadFailed(true);
-  }, [playbackSrcStatus]);
-
-  useEffect(() => {
-    if (!eventStarted || showEnded || !node?.id) return;
-    if (videoLoadFailed) {
-      if (projectionErrorBroadcastRef.current === `err:${node.id}`) return;
-      projectionErrorBroadcastRef.current = `err:${node.id}`;
-      const msg = `Screen projection paused — could not play “${node.title}”. Fix media on the projector browser or reload the beat from /host.`;
-      void broadcastEventSync(roomSyncClient, eventId, {
-        type: "projection_alert",
-        kind: "video_error",
-        message: msg,
-        nodeId: node.id,
-      });
-      return;
-    }
-    if (
-      playbackSrcStatus === "ready" &&
-      projectionErrorBroadcastRef.current?.startsWith("err:") &&
-      projectionErrorBroadcastRef.current.endsWith(node.id)
-    ) {
-      projectionErrorBroadcastRef.current = null;
-      void broadcastEventSync(roomSyncClient, eventId, {
-        type: "projection_alert",
-        kind: "video_recovered",
-        message: `Screen projection resumed on “${node.title}”.`,
-        nodeId: node.id,
-      });
-    }
-  }, [
-    videoLoadFailed,
-    eventStarted,
-    showEnded,
-    node,
-    roomSyncClient,
-    eventId,
-    playbackSrcStatus,
-  ]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -236,14 +152,8 @@ export function ScreenDisplay() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (questionOpenTimerRef.current) window.clearTimeout(questionOpenTimerRef.current);
-    };
-  }, []);
-
-  const hasPlayableMedia = Boolean(videoSrc);
-  const endingComplete = !endingNode || endingPlayedOut || !hasPlayableMedia;
+  /** Vote-first wall: no in-browser film; ending “fin” uses graph position only. */
+  const endingComplete = true;
 
   const mode = deriveMode(eventStarted, showEnded, votePhase, engine.phase, endingNode, endingComplete);
 
@@ -339,17 +249,8 @@ export function ScreenDisplay() {
     }
   }, [votePhase, reduceMotion]);
 
-  const [hideUiWhilePlaying, setHideUiWhilePlaying] = useState(false);
   /** True while this page’s root container is the browser fullscreen element — room chrome hidden. */
   const [programFullscreen, setProgramFullscreen] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem("showtime-screen-cinema") === "1") setHideUiWhilePlaying(true);
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   useEffect(() => {
     const syncProgramFullscreen = () => {
@@ -368,78 +269,22 @@ export function ScreenDisplay() {
     };
   }, []);
 
-  const toggleCinemaUi = useCallback(() => {
-    setHideUiWhilePlaying((h) => {
-      const next = !h;
-      try {
-        sessionStorage.setItem("showtime-screen-cinema", next ? "1" : "0");
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const segmentFilmActive =
-    eventStarted &&
-    !showEnded &&
-    mode === "segment" &&
-    hasPlayableMedia &&
-    playbackSrcStatus === "ready" &&
-    !videoLoadFailed;
-
   const voteOrRevealExperience =
     mode === "vote_countdown" ||
     mode === "vote_open" ||
     mode === "vote_closed" ||
     mode === "reveal";
 
-  /** Full-bleed room: real fullscreen, or cinema toggle through reel + ballot + reveal (not just during playback). */
-  const immersiveFilmShell =
-    programFullscreen ||
-    (hideUiWhilePlaying &&
-      eventStarted &&
-      !showEnded &&
-      (segmentFilmActive || Boolean(questionPrimed) || voteOrRevealExperience));
+  /** Full-bleed during votes/reveal or true browser fullscreen. */
+  const immersiveFilmShell = programFullscreen || (eventStarted && !showEnded && voteOrRevealExperience);
 
   const minimalShell = immersiveFilmShell;
 
-  const voteUiFullBleed =
-    voteOrRevealExperience && eventStarted && !showEnded && (programFullscreen || hideUiWhilePlaying);
-
-  const handleVideoEnded = useCallback(() => {
-    pauseSegment();
-    if (endingNode) {
-      setEndingPlayedOut(true);
-      return;
-    }
-    const voteable = Boolean(node?.question && node.optionA && node.optionB);
-    if (voteable && node?.question && node.optionA && node.optionB) {
-      setQuestionPrimed({
-        question: node.question,
-        labelA: node.optionA.label,
-        labelB: node.optionB.label,
-      });
-      if (questionOpenTimerRef.current) window.clearTimeout(questionOpenTimerRef.current);
-      questionOpenTimerRef.current = window.setTimeout(() => {
-        questionOpenTimerRef.current = null;
-        const st = useMockEventStore.getState();
-        if (st.engine.phase === "idle") {
-          st.openVoteImmediate();
-        }
-        setQuestionPrimed(null);
-      }, 3200);
-      return;
-    }
-    if (node?.question) {
-      setChoiceIncoming(true);
-    }
-  }, [pauseSegment, endingNode, node]);
+  const voteUiFullBleed = voteOrRevealExperience && eventStarted && !showEnded;
 
   const enterProgramFullscreen = useCallback(() => {
     if (!showEnded) {
       startEvent();
-      playSegment();
     }
     const root = containerRef.current;
     if (!root) return;
@@ -456,7 +301,7 @@ export function ScreenDisplay() {
     } catch {
       /* ignored */
     }
-  }, [playSegment, showEnded, startEvent]);
+  }, [showEnded, startEvent]);
 
   const syncBanner = useMemo(() => {
     if (!usesSupabase || !eventStarted || showEnded) return null;
@@ -465,26 +310,6 @@ export function ScreenDisplay() {
       return "disconnected" as const;
     return null;
   }, [usesSupabase, eventStarted, showEnded, channelStatus]);
-
-  const segmentVideoLoading =
-    eventStarted &&
-    !showEnded &&
-    mode === "segment" &&
-    hasPlayableMedia &&
-    playbackSrcStatus === "loading" &&
-    !videoLoadFailed;
-
-  const toggleVideoFit = useCallback(() => {
-    setVideoFit((f) => {
-      const next = f === "contain" ? "cover" : "contain";
-      try {
-        sessionStorage.setItem("showtime-screen-video-fit", next);
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
 
   const toggleTestDisplay = useCallback(() => {
     setTestDisplay((v) => {
@@ -497,20 +322,6 @@ export function ScreenDisplay() {
       return next;
     });
   }, []);
-
-  const projectionPaused =
-    Boolean(videoSrc) &&
-    videoLoadFailed &&
-    mode === "segment" &&
-    eventStarted &&
-    !showEnded;
-
-  const cinemaPlaybackClean =
-    minimalShell &&
-    segmentFilmActive &&
-    !choiceIncoming &&
-    !questionPrimed &&
-    !projectionPaused;
 
   const exitProgramFullscreen = useCallback(() => {
     try {
@@ -543,7 +354,7 @@ export function ScreenDisplay() {
         >
           <p className="text-[clamp(1.35rem,4vw,2.75rem)]">
             {syncBanner === "disconnected"
-              ? "Projection link interrupted — reconnecting the live room…"
+              ? "Live link interrupted — reconnecting the room…"
               : "Reconnecting to the live room…"}
           </p>
           <p className="mt-3 font-mono text-[clamp(1rem,2.2vw,1.35rem)] uppercase tracking-[0.12em] opacity-90">
@@ -579,8 +390,8 @@ export function ScreenDisplay() {
               </p>
               {!eventStarted ? (
                 <p className="mt-3 max-w-3xl text-pretty font-mono text-[clamp(0.72rem,1.65vw,0.95rem)] leading-relaxed text-[var(--kc-cream-dim)]/80">
-                  Same live story as <span className="text-[var(--kc-champagne)]/90">/host</span> in this tab — open the
-                  room here for projection; operator can steer or recover anytime.
+                  Same live room as <span className="text-[var(--kc-champagne)]/90">/host</span> — keep this display open for
+                  audience voting and results while the operator runs picture from the booth.
                 </p>
               ) : null}
             </div>
@@ -597,103 +408,12 @@ export function ScreenDisplay() {
           voteUiFullBleed && "min-h-0 overflow-hidden",
         )}
       >
-        {segmentVideoLoading ? (
-          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black">
-            <p className="max-w-[92vw] text-center font-heading text-[clamp(2.25rem,8vw,6rem)] font-normal leading-tight text-[var(--kc-cream)]">
-              Next reel loading…
-            </p>
-          </div>
-        ) : null}
-
-        {segmentFilmActive ? (
-          <div className="absolute inset-0 z-[5] flex min-h-0 flex-col bg-black">
-            <ScreenVideo
-              key={`${currentNodeId}-${mediaGeneration}-${videoSrc ?? "none"}`}
-              src={videoSrc!}
-              objectFit={videoFit}
-              sendPlaybackTelemetry={sendPlaybackTelemetry}
-              onEnded={handleVideoEnded}
-              onMediaError={() => setVideoLoadFailed(true)}
-              onMediaReady={() => setVideoLoadFailed(false)}
-              className="min-h-0 flex-1"
-            />
-            {choiceIncoming ? (
-              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-[max(1.5rem,4vw)] text-center">
-                <p className="font-mono text-[clamp(1.25rem,3.5vw,2rem)] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)]">
-                  Next reel loading
-                </p>
-                <p className="mt-10 max-w-[90vw] font-heading text-[clamp(2.25rem,7vw,6rem)] font-normal leading-[1.08] text-[var(--kc-cream)]">
-                  The story continues…
-                </p>
-              </div>
-            ) : null}
-            {questionPrimed ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 1.15, ease: [0.22, 1, 0.36, 1] }}
-                className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-black/88 px-[max(1.5rem,4vw)] text-center"
-              >
-                <p className="mb-8 max-w-[95vw] font-mono text-[clamp(1.35rem,3.8vw,2.25rem)] font-semibold uppercase leading-snug tracking-[0.18em] text-[var(--kc-champagne)] md:mb-12">
-                  {kcCopy.audienceMustDecide}
-                </p>
-                <h2 className="max-w-[92vw] font-heading text-[clamp(2.5rem,8vw,7rem)] font-normal leading-[1.08] tracking-tight text-[var(--kc-cream)] drop-shadow-[0_8px_56px_oklch(0_0_0/0.55)]">
-                  {questionPrimed.question}
-                </h2>
-                <div className="mt-14 grid max-w-[min(92vw,56rem)] gap-8 text-left font-mono text-[clamp(1.25rem,3.2vw,2rem)] uppercase leading-snug tracking-[0.12em] text-[var(--kc-cream-dim)] md:grid-cols-2 md:gap-16">
-                  <p>
-                    <span className="text-[var(--kc-champagne)]">A — </span>
-                    {questionPrimed.labelA}
-                  </p>
-                  <p>
-                    <span className="text-[var(--kc-champagne)]">B — </span>
-                    {questionPrimed.labelB}
-                  </p>
-                </div>
-              </motion.div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {cinemaPlaybackClean ? (
-          <div className="pointer-events-none absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-[45] opacity-[0.42]">
-            <span className="font-heading text-[clamp(0.75rem,1.5vw,1.1rem)] tracking-[0.14em] text-[var(--kc-cream)]">
-              Kasdan Co.
-            </span>
-          </div>
-        ) : null}
-
-        {projectionPaused ? (
-          <div className="absolute inset-0 z-[40] flex flex-col items-center justify-center bg-black px-[max(1.5rem,5vw)] text-center">
-            <p className="font-mono text-[clamp(1.35rem,3.5vw,2.25rem)] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)]">
-              Projection paused
-            </p>
-            <h2 className="mt-10 max-w-[90vw] font-heading text-[clamp(2.5rem,8vw,6.5rem)] font-normal leading-[1.06] text-[var(--kc-cream)]">
-              This reel could not be played on this display
-            </h2>
-            <p className="mx-auto mt-10 max-w-[46rem] font-mono text-[clamp(1.2rem,2.8vw,1.85rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-              The operator has been notified. Check the video URL or choose the local file again in Story builder on this
-              projector machine, then reload from the host desk.
-            </p>
-            {node?.title ? (
-              <p className="mt-14 font-heading text-[clamp(1.75rem,4vw,3rem)] text-[var(--kc-cream)]/85">{node.title}</p>
-            ) : null}
-            {node?.subtitle?.trim() ? (
-              <p className="mt-6 max-w-[40rem] text-[clamp(1.25rem,2.8vw,1.75rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-                {node.subtitle.trim()}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
         <div
           className={cn(
             "flex flex-1 flex-col items-center px-5 pb-[max(4rem,env(safe-area-inset-bottom))] pt-6 md:px-16 md:pb-24 md:pt-10",
             voteUiFullBleed
               ? "relative z-[14] min-h-0 w-full flex-1 justify-start overflow-hidden px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))] md:px-10 md:pb-6 md:pt-4"
               : "justify-center",
-            segmentFilmActive ? "pointer-events-none absolute inset-0 z-[4] min-h-0" : "",
-            segmentFilmActive && mode === "segment" ? "justify-center" : "",
           )}
         >
           <AnimatePresence mode="wait">
@@ -701,13 +421,12 @@ export function ScreenDisplay() {
               <PreShow key="pre" title={eventTitle} />
             )}
 
-            {mode === "segment" && !hasPlayableMedia && (
+            {mode === "segment" && (
               <SegmentCard
                 key="seg"
                 title={node?.title ?? "Program"}
-                playing={playback.isPlaying}
                 description={node?.subtitle}
-                statusNote="No video selected."
+                statusNote="The feature runs from the booth — this display only carries live votes. Stand by for the next ballot."
               />
             )}
 
@@ -811,10 +530,10 @@ export function ScreenDisplay() {
 
       {minimalShell ? (
         <>
-          {!dockOpen && !cinemaPlaybackClean ? (
+          {!dockOpen ? (
             <button
               type="button"
-              aria-label="Open projection controls"
+              aria-label="Open display controls"
               aria-expanded={false}
               onClick={() => setDockOpen(true)}
               className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex size-12 items-center justify-center rounded-full border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.1_0.02_280/0.92)] text-[var(--kc-champagne)] shadow-[0_8px_32px_oklch(0_0_0/0.45)] backdrop-blur-md transition-[background-color,border-color,transform] hover:border-[var(--kc-gold-muted)]/55 hover:bg-[oklch(0.14_0.025_48/0.94)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
@@ -825,12 +544,12 @@ export function ScreenDisplay() {
           {dockOpen ? (
             <div
               role="dialog"
-              aria-label="Projection controls"
+              aria-label="Display controls"
               className="pointer-events-auto fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[61] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3 rounded-2xl border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.08_0.02_260/0.94)] p-4 shadow-[0_16px_64px_oklch(0_0_0/0.55)] backdrop-blur-lg"
             >
               <div className="flex items-center justify-between gap-2 border-b border-[oklch(0.72_0.05_78/0.15)] pb-3">
                 <span className="font-heading text-[clamp(1rem,2.4vw,1.35rem)] tracking-wide text-[var(--kc-cream)]">
-                  Projection
+                  Display
                 </span>
                 <button
                   type="button"
@@ -867,21 +586,6 @@ export function ScreenDisplay() {
               )}
               <button
                 type="button"
-                onClick={toggleCinemaUi}
-                className="flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
-              >
-                {hideUiWhilePlaying ? <Eye className="size-4 shrink-0 opacity-90" /> : <EyeOff className="size-4 shrink-0 opacity-90" />}
-                {hideUiWhilePlaying ? "Show house UI" : "Cinema mode"}
-              </button>
-              <button
-                type="button"
-                onClick={toggleVideoFit}
-                className="min-h-12 rounded-xl border border-[var(--kc-gold-muted)]/30 bg-[oklch(0.12_0.02_280/0.55)] px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] text-[var(--kc-champagne)] hover:bg-[oklch(0.16_0.025_48/0.65)]"
-              >
-                Video fit: {videoFit === "contain" ? "Contain" : "Cover"}
-              </button>
-              <button
-                type="button"
                 onClick={toggleTestDisplay}
                 className={cn(
                   "min-h-12 rounded-xl border px-4 py-3 font-mono text-[clamp(0.85rem,2vw,1.05rem)] font-semibold uppercase tracking-[0.12em] hover:bg-[oklch(0.16_0.025_48/0.65)]",
@@ -908,14 +612,6 @@ export function ScreenDisplay() {
           >
             <Expand className="size-4 opacity-90" />
             Fullscreen
-          </button>
-          <button
-            type="button"
-            onClick={toggleCinemaUi}
-            className="pointer-events-auto flex min-h-12 items-center gap-2 rounded-full border border-[var(--kc-gold-muted)]/35 bg-[oklch(0.1_0.02_280/0.88)] px-4 py-3 font-mono text-[0.68rem] font-medium uppercase tracking-[0.14em] text-[var(--kc-champagne)] shadow-[0_8px_32px_oklch(0_0_0/0.35)] backdrop-blur-md transition-[background-color,border-color,transform] duration-200 ease-out hover:border-[var(--kc-gold-muted)]/50 hover:bg-[oklch(0.14_0.025_48/0.92)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[oklch(0.78_0.06_78/0.45)]"
-          >
-            {hideUiWhilePlaying ? <Eye className="size-4 opacity-90" /> : <EyeOff className="size-4 opacity-90" />}
-            {hideUiWhilePlaying ? "Show UI" : "Cinema"}
           </button>
         </div>
       ) : null}
@@ -952,15 +648,15 @@ function PreShow({ title }: { title: string }) {
 function SegmentCard({
   title,
   playing,
-  eyebrow = "Beat",
+  eyebrow = "Program",
   description,
   statusNote,
 }: {
   title: string;
-  playing: boolean;
+  /** Omitted when this wall does not mirror transport playback. */
+  playing?: boolean;
   eyebrow?: string;
   description?: string | null;
-  /** Shown under the title when the beat has no playable media (e.g. cleared URL + local file). */
   statusNote?: string | null;
 }) {
   return (
@@ -991,21 +687,23 @@ function SegmentCard({
               {description.trim()}
             </p>
           ) : null}
-          <div
-            className={cn(
-              "relative mt-14 inline-flex items-center gap-3 rounded-full border border-[var(--kc-gold-muted)]/18 bg-[oklch(0.09_0.02_280/0.55)] px-6 py-2.5 font-mono text-[clamp(0.95rem,2vw,1.15rem)] uppercase tracking-[0.14em] text-[var(--kc-cream-dim)] transition-opacity duration-300",
-              playing ? "opacity-100" : "opacity-55",
-            )}
-          >
-            <span
+          {playing != null ? (
+            <div
               className={cn(
-                "size-2 rounded-full transition-colors duration-300",
-                playing ? "bg-[var(--kc-champagne)]/85" : "bg-[var(--kc-cream-dim)]/35",
+                "relative mt-14 inline-flex items-center gap-3 rounded-full border border-[var(--kc-gold-muted)]/18 bg-[oklch(0.09_0.02_280/0.55)] px-6 py-2.5 font-mono text-[clamp(0.95rem,2vw,1.15rem)] uppercase tracking-[0.14em] text-[var(--kc-cream-dim)] transition-opacity duration-300",
+                playing ? "opacity-100" : "opacity-55",
               )}
-              aria-hidden
-            />
-            {playing ? "Playing" : "Paused"}
-          </div>
+            >
+              <span
+                className={cn(
+                  "size-2 rounded-full transition-colors duration-300",
+                  playing ? "bg-[var(--kc-champagne)]/85" : "bg-[var(--kc-cream-dim)]/35",
+                )}
+                aria-hidden
+              />
+              {playing ? "Playing" : "Paused"}
+            </div>
+          ) : null}
         </div>
       </ScreenTitleCardFrame>
     </motion.div>
@@ -1558,6 +1256,14 @@ function RevealSpectacle({
                 )}
               >
                 Option {winner}
+              </p>
+              <p
+                className={cn(
+                  "text-center font-heading font-normal text-[var(--kc-champagne)]/90",
+                  wall ? "mt-5 text-[clamp(1rem,2.4vw,1.35rem)] md:mt-6" : "mt-10 text-[clamp(1.15rem,2.8vw,1.6rem)]",
+                )}
+              >
+                Next reel begins shortly
               </p>
             </ScreenTitleCardFrame>
           </motion.div>

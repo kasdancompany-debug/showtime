@@ -12,7 +12,6 @@ import {
   ScanLine,
   Shuffle,
   Users,
-  Video,
   Wifi,
 } from "lucide-react";
 
@@ -29,15 +28,6 @@ import { getNode, validateGraph } from "@/lib/story-engine/graph";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { useShowtimeHostDiagnostics } from "@/hooks/use-showtime-host-diagnostics";
 import { cn } from "@/lib/utils";
-
-function missingMediaCount(graph: Parameters<typeof validateGraph>[0]) {
-  let n = 0;
-  for (const node of Object.values(graph.nodes)) {
-    const ok = Boolean(node.videoUrl?.trim() || (node.localVideoKey && String(node.localVideoKey).trim()));
-    if (!ok) n++;
-  }
-  return n;
-}
 
 export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: boolean }) {
   const diagnostics = useShowtimeHostDiagnostics();
@@ -58,9 +48,7 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
   const rehearsalAddFakeAudience = useMockEventStore((s) => s.rehearsalAddFakeAudience);
   const rehearsalSimulateRandomVotes = useMockEventStore((s) => s.rehearsalSimulateRandomVotes);
 
-  const structureValidation = useMemo(() => validateGraph(graph, { requireMedia: false }), [graph]);
-  const productionValidation = useMemo(() => validateGraph(graph, { requireMedia: true }), [graph]);
-  const mediaMissing = useMemo(() => missingMediaCount(graph), [graph]);
+  const storyGraphValidation = useMemo(() => validateGraph(graph), [graph]);
 
   const realtimeHealthy =
     syncMode === "local_preview"
@@ -75,7 +63,7 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
       {
         id: "screen",
         ok: diagnostics.screenLikelyConnected,
-        label: "Projection (/screen)",
+        label: "Wall display (/screen)",
         detail: diagnostics.screenLikelyConnected
           ? "Heartbeat seen recently"
           : "Open /screen on this origin so the desk gets heartbeats.",
@@ -88,15 +76,11 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
       },
       {
         id: "story",
-        ok: structureValidation.ok,
-        label: "Story structure",
-        detail: structureValidation.ok ? "Forks and endings validate" : structureValidation.errors[0] ?? "Fix graph structure",
-      },
-      {
-        id: "video",
-        ok: mediaMissing === 0,
-        label: "Videos attached",
-        detail: mediaMissing === 0 ? "Every beat has a URL or local file" : `${mediaMissing} beat(s) missing media (OK for demo graph)`,
+        ok: storyGraphValidation.ok,
+        label: "Story graph",
+        detail: storyGraphValidation.ok
+          ? "Branches, vote copy, and operator clip names validate"
+          : storyGraphValidation.errors[0] ?? "Fix graph in Story builder",
       },
       {
         id: "sync",
@@ -114,8 +98,7 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
       diagnostics.loopbackJoinWarning,
       diagnostics.realtimeStatus,
       joinUrlOk,
-      structureValidation,
-      mediaMissing,
+      storyGraphValidation,
       syncMode,
       realtimeHealthy,
     ],
@@ -191,18 +174,16 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
             </li>
           ))}
         </ul>
-        {!productionValidation.ok ? (
+        {!storyGraphValidation.ok ? (
           <p
             className={cn(
               "rounded-lg border border-[var(--bn-line)] bg-card/40 text-muted-foreground",
               embedInDesk ? "px-3 py-2 text-xs" : "rounded-xl px-4 py-3 text-sm",
             )}
           >
-            <strong className="text-foreground">Production graph check</strong> —{" "}
-            {productionValidation.ok ? "OK" : productionValidation.errors.slice(0, 2).join(" · ")}
-            {!productionValidation.ok && productionValidation.errors.length > 2
-              ? ` (+${productionValidation.errors.length - 2} more)`
-              : null}
+            <strong className="text-foreground">Story graph check</strong> —{" "}
+            {storyGraphValidation.errors.slice(0, 2).join(" · ")}
+            {storyGraphValidation.errors.length > 2 ? ` (+${storyGraphValidation.errors.length - 2} more)` : null}
           </p>
         ) : null}
       </section>
@@ -218,7 +199,7 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
             className={cn("w-full font-semibold", embedInDesk ? "h-9 rounded-lg text-sm" : "min-h-12 rounded-xl text-base")}
             onClick={loadDemo}
           >
-            Load 3-node demo (no videos)
+            Load 3-node demo
           </Button>
           <p className="mt-1.5 text-xs text-muted-foreground">Replaces the live graph in this tab with a branching sample.</p>
         </div>
@@ -326,7 +307,7 @@ export function HostRehearsalPanel({ embedInDesk = false }: { embedInDesk?: bool
           <strong className="text-foreground">{engine.phase}</strong>
         </p>
         <p className="mt-1.5 flex flex-wrap items-center gap-2">
-          <Video className="size-4 text-muted-foreground" />
+          <MonitorPlay className="size-4 text-muted-foreground" />
           <span>{eventTitle}</span>
           <span className="text-[var(--bn-line)]">|</span>
           <Wifi className="size-4" />

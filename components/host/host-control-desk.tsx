@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronRight, Copy, ExternalLink, Pause, Play, RotateCcw, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, ExternalLink } from "lucide-react";
 
 import { HostDeskStatusBar } from "@/components/host/host-desk-status-bar";
-import { HostOperatorDeskPreview } from "@/components/host/host-operator-preview";
 import { HostRehearsalPanel } from "@/components/host/host-rehearsal-panel";
 import { HostStoryTimeline } from "@/components/host/host-story-timeline";
 import { HostSystemCheck } from "@/components/host/host-system-check";
@@ -13,9 +12,8 @@ import { JoinQrTestPanel } from "@/components/host/join-qr-test-panel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useEventRoomPlaybackSync } from "@/hooks/use-event-room-playback-sync";
-import { useNodePlaybackSrc } from "@/hooks/use-node-playback-src";
 import { useRoomStoryInboundSync, useRoomStoryLeaderSync } from "@/hooks/use-room-story-sync";
-import { useProjectionAlertIngest, useAudienceVoteIngest, useVoteStateBroadcaster } from "@/hooks/use-room-vote-sync";
+import { useAudienceVoteIngest, useVoteStateBroadcaster } from "@/hooks/use-room-vote-sync";
 import { useShowtimeHostDiagnostics } from "@/hooks/use-showtime-host-diagnostics";
 import { LOOPBACK_WARNING } from "@/lib/join/get-join-url";
 import { branchOutlookFromNode } from "@/lib/showtime/host-story-path";
@@ -32,7 +30,7 @@ import {
   getNextOperatorAction,
   type OperatorActionHandlers,
 } from "@/lib/showtime/operator-next-action";
-import { getNode, validateGraph } from "@/lib/story-engine";
+import { getNode, nextClipForVoteWinner, validateGraph } from "@/lib/story-engine";
 import { getEffectiveWinner, needsHostChoice } from "@/lib/story-engine/engine";
 import type { LiveShowStatus } from "@/lib/store/mock-event-store";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
@@ -50,16 +48,13 @@ function useNowTicker(active: boolean, intervalMs: number) {
   return now;
 }
 
-type DeskVideoLabel = "No video selected" | "Loading video" | "Missing local file" | "Ready" | "Playing" | "Paused" | "Failed";
-
 export function HostControlDesk() {
   const diagnostics = useShowtimeHostDiagnostics();
   useRoomStoryLeaderSync();
   useRoomStoryInboundSync();
-  const { sendPlaybackCommand, sendPlaybackResync } = useEventRoomPlaybackSync("host");
+  const { sendPlaybackResync } = useEventRoomPlaybackSync("host");
   useVoteStateBroadcaster();
   useAudienceVoteIngest();
-  useProjectionAlertIngest();
 
   const engine = useMockEventStore((s) => s.engine);
   const eventTitle = useMockEventStore((s) => s.eventTitle);
@@ -67,10 +62,7 @@ export function HostControlDesk() {
   const eventId = useMockEventStore((s) => s.eventId);
   const eventStarted = useMockEventStore((s) => s.eventStarted);
   const showEnded = useMockEventStore((s) => s.showEnded);
-  const playback = useMockEventStore((s) => s.playback);
   const audienceConnected = useMockEventStore((s) => s.audienceConnected);
-  const projectionSurfaceFault = useMockEventStore((s) => s.projectionSurfaceFault);
-  const setProjectionSurfaceFault = useMockEventStore((s) => s.setProjectionSurfaceFault);
   const votePhase = useMockEventStore((s) => s.votePhase);
   const voteEndsAt = useMockEventStore((s) => s.voteEndsAt);
   const countdownSec = useMockEventStore((s) => s.countdownSec);
@@ -82,8 +74,6 @@ export function HostControlDesk() {
 
   const startEvent = useMockEventStore((s) => s.startEvent);
   const endShow = useMockEventStore((s) => s.endShow);
-  const togglePlay = useMockEventStore((s) => s.togglePlay);
-  const restartSegment = useMockEventStore((s) => s.restartSegment);
   const openVoteImmediate = useMockEventStore((s) => s.openVoteImmediate);
   const tickCountdown = useMockEventStore((s) => s.tickCountdown);
   const closeVote = useMockEventStore((s) => s.closeVote);
@@ -99,13 +89,10 @@ export function HostControlDesk() {
   const setAllowAnonymousQuickJoin = useMockEventStore((s) => s.setAllowAnonymousQuickJoin);
   const dryRunMode = useMockEventStore((s) => s.dryRunMode);
   const setDryRunMode = useMockEventStore((s) => s.setDryRunMode);
-  const clearCurrentNodeMedia = useMockEventStore((s) => s.clearCurrentNodeMedia);
-
   const [copiedJoinUrl, setCopiedJoinUrl] = useState(false);
   const [copiedEventCode, setCopiedEventCode] = useState(false);
   const [savedFilms, setSavedFilms] = useState<SavedFilm[]>(() => listSavedFilms());
   const [savedFilmPick, setSavedFilmPick] = useState("");
-  const [previewDecodeFailed, setPreviewDecodeFailed] = useState(false);
 
   const liveStatus = useMockEventStore((s) => s.liveStatus);
   const liveStatusLabel = useMemo(() => {
@@ -134,10 +121,8 @@ export function HostControlDesk() {
 
   const node = useMemo(() => getNode(graph, currentNodeId), [graph, currentNodeId]);
   const voteNode = useMemo(() => selectVoteDisplayNode(engine), [engine]);
-  const mediaGeneration = useMockEventStore((s) => s.mediaGeneration);
-  const { src: previewSrc, status: previewSrcStatus } = useNodePlaybackSrc(node, mediaGeneration);
 
-  const productionValidation = useMemo(() => validateGraph(graph, { requireMedia: true }), [graph]);
+  const productionValidation = useMemo(() => validateGraph(graph), [graph]);
 
   const voteable =
     Boolean(node?.question?.trim()) &&
@@ -186,28 +171,17 @@ export function HostControlDesk() {
       ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(diagnostics.joinUrl)}`
       : "";
 
-  const cmdPlay = useCallback(() => {
-    const st = useMockEventStore.getState();
-    if (st.playback.isPlaying) return;
-    togglePlay();
-    sendPlaybackCommand("play");
-  }, [togglePlay, sendPlaybackCommand]);
-
-  const cmdPause = useCallback(() => {
-    const st = useMockEventStore.getState();
-    if (!st.playback.isPlaying) return;
-    togglePlay();
-    sendPlaybackCommand("pause");
-  }, [togglePlay, sendPlaybackCommand]);
-
-  const cmdRestart = useCallback(() => {
-    restartSegment();
-    sendPlaybackCommand("restart");
-  }, [restartSegment, sendPlaybackCommand]);
-
   const resyncProjector = useCallback(() => {
     sendPlaybackResync();
   }, [sendPlaybackResync]);
+
+  const noopTransport = useCallback(() => {}, []);
+
+  const operatorPlayThisNext = useMemo(() => {
+    if (engine.phase !== "awaiting_reveal" && engine.phase !== "revealed") return null;
+    if (!engine.voteNodeId || !engine.winner) return null;
+    return nextClipForVoteWinner(graph, engine.voteNodeId, engine.winner);
+  }, [engine.phase, engine.voteNodeId, engine.winner, graph]);
 
   const confirmedCloseVote = useCallback(() => {
     const st = useMockEventStore.getState();
@@ -226,7 +200,7 @@ export function HostControlDesk() {
   const confirmResetLiveEvent = useCallback(() => {
     if (
       !window.confirm(
-        "Reset this room to draft at the opening beat? Playback stops, votes clear, audience count resets.",
+        "Reset this room to draft at the opening beat? Votes clear and audience count resets.",
       )
     )
       return;
@@ -236,7 +210,7 @@ export function HostControlDesk() {
   const confirmResetLocalShowData = useCallback(() => {
     if (
       !window.confirm(
-        "Reset local show data? This clears the join session for this event code in this browser, removes the loaded film from the operator room (empty story), and wipes cached references to local videos for the live graph.",
+        "Reset local show data? This clears the join session for this event code in this browser and resets the operator room to an empty story draft.",
       )
     )
       return;
@@ -274,7 +248,7 @@ export function HostControlDesk() {
   const confirmResetVote = useCallback(() => {
     if (
       !window.confirm(
-        "Reset the whole live room to draft? Use this if the ballot is broken. This clears votes, playback, and audience count.",
+        "Reset the whole live room to draft? Use this if the ballot is broken. This clears votes and audience count.",
       )
     )
       return;
@@ -282,22 +256,9 @@ export function HostControlDesk() {
   }, [resetLiveEvent]);
 
   const confirmEndShow = useCallback(() => {
-    if (!window.confirm("End the show for everyone? Playback stops; guests see finale state.")) return;
+    if (!window.confirm("End the show for everyone? Guests see the finale state.")) return;
     endShow();
   }, [endShow]);
-
-  const clearVideoDesk = useCallback(async () => {
-    setProjectionSurfaceFault(null);
-    setPreviewDecodeFailed(false);
-    await clearCurrentNodeMedia();
-    const st = useMockEventStore.getState();
-    if (st.playback.isPlaying) {
-      togglePlay();
-      sendPlaybackCommand("pause");
-    }
-    restartSegment();
-    sendPlaybackCommand("restart");
-  }, [clearCurrentNodeMedia, setProjectionSurfaceFault, togglePlay, restartSegment, sendPlaybackCommand]);
 
   const copyJoinLink = useCallback(async () => {
     if (!diagnostics.joinUrl) return;
@@ -319,18 +280,6 @@ export function HostControlDesk() {
       /* ignore */
     }
   }, [eventCode]);
-
-  const deskVideoLabel: DeskVideoLabel = useMemo(() => {
-    const hasMediaFields = Boolean(node?.videoUrl?.trim() || node?.localVideoKey?.trim());
-    if (!hasMediaFields) return "No video selected";
-    if (previewSrcStatus === "loading") return "Loading video";
-    if (previewSrcStatus === "missing") return "Missing local file";
-    if (previewDecodeFailed) return "Failed";
-    if (!previewSrc) return "Loading video";
-    if (playback.isPlaying) return "Playing";
-    if (playback.positionSec > 0.5) return "Paused";
-    return "Ready";
-  }, [node, previewSrcStatus, previewDecodeFailed, previewSrc, playback.isPlaying, playback.positionSec]);
 
   const voteStateHeadline = useMemo(() => {
     if (votePhase === "countdown") return "Countdown";
@@ -354,46 +303,31 @@ export function HostControlDesk() {
     const ids = Object.keys(graph.nodes);
     if (ids.length !== 1) return false;
     const root = graph.nodes[graph.rootId];
-    return Boolean(
-      root?.isEnd &&
-        root.id === "opening" &&
-        !root.videoUrl?.trim() &&
-        !root.localVideoKey?.trim(),
-    );
+    return Boolean(root?.isEnd && root.id === "opening");
   }, [graph]);
 
   const operatorState = useMemo(
     () =>
       deriveOperatorEventState({
-        projectionSurfaceFault,
         showEnded,
         eventStarted,
         enginePhase: engine.phase,
-        playbackIsPlaying: playback.isPlaying,
-        playbackPositionSec: playback.positionSec,
       }),
-    [
-      projectionSurfaceFault,
-      showEnded,
-      eventStarted,
-      engine.phase,
-      playback.isPlaying,
-      playback.positionSec,
-    ],
+    [showEnded, eventStarted, engine.phase],
   );
 
   const operatorUi = useMemo(() => {
     const handlers: OperatorActionHandlers = {
       startEvent,
-      play: cmdPlay,
-      pause: cmdPause,
+      play: noopTransport,
+      pause: noopTransport,
       openVote: () => openVoteImmediate(),
       closeVote: confirmedCloseVote,
       revealWinner: () => revealWinnerToRoom(),
       advanceBranch: () => advanceToWinningBranch(),
       resetRoom: confirmResetVote,
       resetAfterEnded: confirmResetLiveEvent,
-      acknowledgeProjectionFault: () => setProjectionSurfaceFault(null),
+      acknowledgeProjectionFault: noopTransport,
       endShow: confirmEndShow,
       overrideA: tryHostOverrideA,
       overrideB: tryHostOverrideB,
@@ -404,9 +338,9 @@ export function HostControlDesk() {
       countdownSec,
       voteable,
       tieActive,
-      hasPlayableMedia: Boolean(previewSrc && previewSrcStatus === "ready"),
+      hasPlayableMedia: true,
       productionStoryOk: productionValidation.ok,
-      playbackIsPlaying: playback.isPlaying,
+      playbackIsPlaying: false,
     });
   }, [
     operatorState,
@@ -414,20 +348,15 @@ export function HostControlDesk() {
     countdownSec,
     voteable,
     tieActive,
-    previewSrc,
-    previewSrcStatus,
+    noopTransport,
     productionValidation.ok,
-    playback.isPlaying,
     startEvent,
-    cmdPlay,
-    cmdPause,
     openVoteImmediate,
     confirmedCloseVote,
     revealWinnerToRoom,
     advanceToWinningBranch,
     confirmResetVote,
     confirmResetLiveEvent,
-    setProjectionSurfaceFault,
     confirmEndShow,
     tryHostOverrideA,
     tryHostOverrideB,
@@ -470,23 +399,27 @@ export function HostControlDesk() {
           role="status"
           className="shrink-0 border-b border-[var(--host-divider)] bg-[oklch(0.72_0.12_78/0.08)] px-4 py-2.5 text-sm leading-snug text-[oklch(0.93_0.03_95)] ring-1 ring-[oklch(0.78_0.1_78/0.15)] ring-inset"
         >
-          <strong className="font-semibold text-[oklch(0.96_0.04_82)]">Local preview</strong> — phones sync after Supabase env and{" "}
-          <code className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.7rem] text-[oklch(0.88_0.02_95)]">
-            NEXT_PUBLIC_JOIN_ORIGIN
-          </code>
-          .
-        </div>
-      ) : null}
-
-      {projectionSurfaceFault ? (
-        <div className="shrink-0 border-b border-[var(--host-divider)] bg-red-950/55 px-4 py-2.5 text-sm leading-snug text-red-100 ring-1 ring-red-500/25 ring-inset">
-          <span className="inline-flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-400" />
-            <span>
-              <strong className="font-semibold text-red-50">Projection</strong> — {projectionSurfaceFault}{" "}
-              <span className="text-red-200/90">Dismiss from Vote control.</span>
-            </span>
-          </span>
+          <p>
+            <strong className="font-semibold text-[oklch(0.96_0.04_82)]">Local preview</strong> — phones need{" "}
+            <code className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.7rem] text-[oklch(0.88_0.02_95)]">
+              NEXT_PUBLIC_SUPABASE_URL
+            </code>
+            ,{" "}
+            <code className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.7rem] text-[oklch(0.88_0.02_95)]">
+              NEXT_PUBLIC_SUPABASE_ANON_KEY
+            </code>
+            , and{" "}
+            <code className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[0.7rem] text-[oklch(0.88_0.02_95)]">
+              NEXT_PUBLIC_JOIN_ORIGIN
+            </code>{" "}
+            in the <strong className="font-semibold">Production</strong> build (Vercel → Settings → Environment Variables →
+            redeploy). Hard-refresh this page after deploy.
+          </p>
+          <p className="mt-2 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-[oklch(0.88_0.02_95)]">
+            This bundle: URL {diagnostics.supabaseUrlPresent ? "ok" : "missing"} · Anon key{" "}
+            {diagnostics.supabaseAnonPresent ? "ok" : "missing"} · Join origin{" "}
+            {diagnostics.joinOriginEnvRaw ? "ok" : "missing"}
+          </p>
         </div>
       ) : null}
 
@@ -505,9 +438,8 @@ export function HostControlDesk() {
           role="status"
           className="shrink-0 border-b border-[var(--host-divider)] bg-[oklch(1_0_0/0.04)] px-4 py-3 text-base leading-snug text-[oklch(0.9_0.02_95)] ring-1 ring-[oklch(1_0_0/0.06)] ring-inset"
         >
-          <strong className="font-semibold text-[var(--kc-cream)]">No picture loaded.</strong>{" "}
-          Build a story in Story builder or load a saved film from the drawer below.{" "}
-          <span className="text-[var(--kc-cream-dim)]">The projector stays on the waiting screen until you load media and go live.</span>
+          <strong className="font-semibold text-[var(--kc-cream)]">No story loaded.</strong>{" "}
+          Build a branch map in Story builder or load a saved story from the drawer below before going live.
         </div>
       ) : null}
 
@@ -515,82 +447,49 @@ export function HostControlDesk() {
         {/* Primary controls — no internal scroll; fills space above drawer strip */}
         <div className="mx-auto grid min-h-0 w-full max-w-[1680px] flex-1 grid-cols-1 gap-4 overflow-hidden p-3 md:p-4 lg:grid-cols-2 lg:gap-5">
           <section className="host-operator-panel flex min-h-0 flex-col overflow-hidden p-4 md:p-5">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--kc-cream-dim)]">Now playing</h2>
-            <p className="mt-2 truncate text-xl font-semibold leading-tight tracking-tight text-[var(--kc-cream)]">{node?.title ?? "—"}</p>
-            <p className="mt-1 font-mono text-xs font-medium text-[var(--kc-cream-dim)]">
-              <span className="text-[var(--kc-cream)]">{deskVideoLabel}</span>
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--kc-cream-dim)]">Now playing (file cue)</h2>
+            <p className="mt-2 break-all font-mono text-lg font-semibold leading-snug text-[var(--kc-cream)]">
+              {node?.operatorClipName?.trim() ? node.operatorClipName.trim() : "—"}
+            </p>
+            <p className="mt-1 truncate text-sm font-medium text-[var(--kc-cream-dim)]">{node?.title ?? "—"}</p>
+
+            <h3 className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--kc-cream-dim)]">
+              Current question
+            </h3>
+            <p className="mt-1.5 line-clamp-4 text-base leading-relaxed text-[oklch(0.9_0.02_95)]">
+              {voteNode?.question?.trim() || node?.question?.trim() || "—"}
             </p>
 
-            <div className="mt-4 shrink-0">
-              <HostOperatorDeskPreview node={node} isPlaying={playback.isPlaying} onFaultChange={setPreviewDecodeFailed} />
-            </div>
+            {engine.winner &&
+            (engine.phase === "awaiting_reveal" || engine.phase === "tiebreak" || engine.phase === "revealed") ? (
+              <p className="mt-4 rounded-lg bg-[oklch(1_0_0/0.04)] px-3 py-2.5 text-center text-sm font-semibold text-[oklch(0.9_0.03_95)] ring-1 ring-[oklch(1_0_0/0.06)]">
+                Winning branch: Option {engine.winner}
+              </p>
+            ) : null}
 
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Button
-                type="button"
-                variant="outline"
-                data-active={
-                  !playback.isPlaying && Boolean(previewSrc && previewSrcStatus === "ready") ? "true" : undefined
-                }
-                className={cn(
-                  "host-transport-btn h-11 rounded-lg text-[0.9375rem] font-semibold ring-1 ring-[oklch(1_0_0/0.08)]",
-                  operatorUi.hideTransportPlay && "hidden",
-                )}
-                onClick={cmdPlay}
-                disabled={!previewSrc || previewSrcStatus !== "ready"}
-                title={
-                  !previewSrc || previewSrcStatus !== "ready"
-                    ? "Add or finish loading video for this beat before playing."
-                    : undefined
-                }
+            {operatorPlayThisNext ? (
+              <div
+                className="mt-5 rounded-xl border-2 border-[oklch(0.78_0.1_78/0.55)] bg-[oklch(0.2_0.02_265)] px-4 py-5 ring-1 ring-[oklch(0.82_0.1_78/0.25)] ring-inset"
+                role="status"
               >
-                <Play className="mr-2 size-4 opacity-90" />
-                Play
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                data-active={playback.isPlaying ? "true" : undefined}
-                className={cn(
-                  "host-transport-btn h-11 rounded-lg text-[0.9375rem] font-semibold ring-1 ring-[oklch(1_0_0/0.08)]",
-                  operatorUi.hideTransportPause && "hidden",
-                )}
-                onClick={cmdPause}
-                disabled={!previewSrc || previewSrcStatus !== "ready"}
-                title={
-                  !previewSrc || previewSrcStatus !== "ready"
-                    ? "Add or finish loading video for this beat before pausing."
-                    : undefined
-                }
-              >
-                <Pause className="mr-2 size-4 opacity-90" />
-                Pause
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 rounded-lg text-[0.9375rem] font-semibold ring-1 ring-[oklch(1_0_0/0.08)]"
-                onClick={cmdRestart}
-              >
-                <RotateCcw className="mr-2 size-4 opacity-90" />
-                Restart
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 rounded-lg text-[0.9375rem] font-semibold ring-1 ring-[oklch(1_0_0/0.08)]"
-                onClick={clearVideoDesk}
-                title="Clear beat media, pause, restart timing"
-              >
-                <Trash2 className="mr-2 size-4 opacity-90" />
-                Clear
-              </Button>
-            </div>
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[oklch(0.88_0.06_78)]">
+                  Play this file next
+                </p>
+                <p className="mt-3 break-all text-center font-mono text-xl font-bold leading-snug text-[var(--kc-cream)] sm:text-2xl">
+                  {operatorPlayThisNext}
+                </p>
+              </div>
+            ) : engine.phase === "revealed" && engine.winner && engine.voteNodeId ? (
+              <p className="mt-5 text-center text-sm text-[var(--kc-cream-dim)]">
+                Cue the next reel in your player, then advance when ready.
+              </p>
+            ) : null}
+
             <Link
               href="/admin/story"
               className={cn(
                 buttonVariants({ variant: "ghost", size: "sm" }),
-                "mt-3 h-11 w-full rounded-lg text-[0.9375rem] font-medium text-[var(--kc-cream-dim)] hover:bg-[oklch(1_0_0/0.05)] hover:text-[var(--kc-cream)]",
+                "mt-6 h-11 w-full rounded-lg text-[0.9375rem] font-medium text-[var(--kc-cream-dim)] hover:bg-[oklch(1_0_0/0.05)] hover:text-[var(--kc-cream)]",
               )}
             >
               <ExternalLink className="mr-2 size-4" />

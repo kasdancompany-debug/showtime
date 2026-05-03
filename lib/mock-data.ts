@@ -1,6 +1,6 @@
 import type { ShowtimeEvent, StoryGraph } from "@/types";
 
-/** One blank beat — add branches and media in Story builder. */
+/** One blank beat — add branches and clip names in Story builder. */
 export const EMPTY_STORY_GRAPH: StoryGraph = {
   rootId: "opening",
   nodes: {
@@ -8,8 +8,7 @@ export const EMPTY_STORY_GRAPH: StoryGraph = {
       id: "opening",
       title: "Opening",
       subtitle: null,
-      videoUrl: null,
-      localVideoKey: null,
+      operatorClipName: "00_placeholder.mp4",
       question: null,
       optionA: null,
       optionB: null,

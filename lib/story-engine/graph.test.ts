@@ -14,19 +14,17 @@ function minimalValid(): StoryGraph {
         id: "r",
         title: "Start",
         subtitle: null,
-        videoUrl: "https://example.com/x.mp4",
-        localVideoKey: null,
+        operatorClipName: "01_start.mp4",
         question: "Q?",
-        optionA: { label: "A", nextNodeId: "e" },
-        optionB: { label: "B", nextNodeId: "e" },
+        optionA: { label: "A", nextNodeId: "e", nextClipName: "02A.mp4" },
+        optionB: { label: "B", nextNodeId: "e", nextClipName: "02B.mp4" },
         isEnd: false,
       },
       e: {
         id: "e",
         title: "End",
         subtitle: null,
-        videoUrl: "https://example.com/y.mp4",
-        localVideoKey: null,
+        operatorClipName: "03_end.mp4",
         question: null,
         optionA: null,
         optionB: null,
@@ -41,12 +39,12 @@ describe("validateGraph", () => {
     expect(validateGraph(minimalValid())).toEqual({ ok: true });
   });
 
-  it("flags missing video", () => {
+  it("flags missing operator clip name", () => {
     const g = minimalValid();
-    g.nodes.r.videoUrl = null;
+    g.nodes.r.operatorClipName = "";
     const r = validateGraph(g);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.errors.some((e) => e.includes("video"))).toBe(true);
+    if (!r.ok) expect(r.errors.some((e) => e.includes("clip"))).toBe(true);
   });
 
   it("flags missing vote question on non-ending beat", () => {
@@ -57,7 +55,7 @@ describe("validateGraph", () => {
 
   it("flags Option A with empty next beat", () => {
     const g = minimalValid();
-    g.nodes.r.optionA = { label: "A", nextNodeId: "" };
+    g.nodes.r.optionA = { label: "A", nextNodeId: "", nextClipName: "x.mp4" };
     const r = validateGraph(g);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.some((e) => e.includes("Option A"))).toBe(true);
@@ -66,13 +64,12 @@ describe("validateGraph", () => {
   it("rejects end beat with branches", () => {
     const g = minimalValid();
     g.nodes.e.isEnd = true;
-    g.nodes.e.optionA = { label: "X", nextNodeId: "r" };
+    g.nodes.e.optionA = { label: "X", nextNodeId: "r", nextClipName: "y.mp4" };
     expect(validateGraph(g).ok).toBe(false);
   });
 
-  it("accepts demo rehearsal graph when media not required", () => {
+  it("accepts demo rehearsal graph", () => {
     const demo = createDemoBranchingStoryGraph();
-    expect(validateGraph(demo, { requireMedia: false }).ok).toBe(true);
-    expect(validateGraph(demo, { requireMedia: true }).ok).toBe(false);
+    expect(validateGraph(demo).ok).toBe(true);
   });
 });

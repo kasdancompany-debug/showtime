@@ -2,7 +2,6 @@
 
 import { create } from "zustand";
 
-import { deleteLocalVideoBlob } from "@/lib/media/local-video-store";
 import { EMPTY_STORY_GRAPH, MOCK_EVENT } from "@/lib/mock-data";
 import {
   advanceToNextNode,
@@ -160,7 +159,7 @@ export interface MockEventStore {
   clearActiveFilm: () => void;
   /** If this saved film id is the active one, run {@link clearActiveFilm}. */
   clearActiveFilmIfSavedFilm: (savedFilmId: string) => void;
-  /** Remove remote URL and local IndexedDB key from the current beat; delete blob; stop playback. */
+  /** Legacy no-op — video playback removed; kept so older UI bundles do not crash. */
   clearCurrentNodeMedia: () => Promise<void>;
   /** Projector / spare operator tabs: replace live story state from leader snapshot. */
   applyRemoteStoryRoomSnapshot: (payload: StoryRoomSnapshotPayload) => void;
@@ -524,24 +523,18 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
           };
           reportSegments = [...s.reportSegments, seg];
         }
-        const n = getNode(engine.graph, engine.currentNodeId);
-        const hasMedia = Boolean(n?.videoUrl?.trim() || n?.localVideoKey?.trim());
-        const shouldRoll = hasMedia && s.eventStarted && !s.showEnded;
         const playback = {
           ...s.playback,
           positionSec: 0,
           durationSec: null,
-          isPlaying: shouldRoll,
+          isPlaying: false,
         };
         return {
           engine,
           playback,
           playbackSyncEpoch: s.playbackSyncEpoch + 1,
           reportSegments,
-          activityLog: pushLog(
-            s.activityLog,
-            shouldRoll ? `Advanced to ${engine.currentNodeId} — rolling` : `Advanced to ${engine.currentNodeId}`,
-          ),
+          activityLog: pushLog(s.activityLog, `Advanced to ${engine.currentNodeId} — play next clip manually`),
           ...legacyFromEngine({ ...s, engine, playback }),
         };
       } catch (err) {
@@ -791,36 +784,7 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   },
 
   clearCurrentNodeMedia: async () => {
-    const s = get();
-    const id = s.engine.currentNodeId;
-    const node = getNode(s.engine.graph, id);
-    if (!node) return;
-    const key = node.localVideoKey?.trim();
-    if (key) {
-      try {
-        await deleteLocalVideoBlob(key);
-      } catch {
-        /* ignore */
-      }
-    }
-    set((prev) => {
-      const graph = cloneGraph(prev.engine.graph);
-      const cur = graph.nodes[id];
-      if (!cur) return {};
-      graph.nodes[id] = { ...cur, videoUrl: null, localVideoKey: null };
-      const normalized = normalizeStoryGraph(graph);
-      const engine = { ...prev.engine, graph: normalized };
-      const playback = { ...prev.playback, isPlaying: false, positionSec: 0, durationSec: null };
-      return {
-        engine,
-        playback,
-        playbackSyncEpoch: prev.playbackSyncEpoch + 1,
-        projectionSurfaceFault: null,
-        mediaGeneration: prev.mediaGeneration + 1,
-        activityLog: pushLog(prev.activityLog, "Cleared beat media (URL + local file)"),
-        ...legacyFromEngine({ ...prev, engine, playback }),
-      };
-    });
+    /* Video / IndexedDB paths removed — operator uses clip names only. */
   },
 
   applyRemoteStoryRoomSnapshot: (payload) => {

@@ -32,6 +32,7 @@ export {
   getNode,
   getRootNode,
   listNodeIds,
+  nextClipForVoteWinner,
   nextNodeAfterVote,
   normalizeStoryGraph,
   removeNodeFromGraph,

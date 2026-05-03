@@ -1,26 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import * as localVideoStore from "@/lib/media/local-video-store";
-import { MOCK_EVENT } from "@/lib/mock-data";
+import { EMPTY_STORY_GRAPH, MOCK_EVENT } from "@/lib/mock-data";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import type { StoryGraph } from "@/types";
 
-vi.mock("@/lib/media/local-video-store", () => ({
-  deleteLocalVideoBlob: vi.fn().mockResolvedValue(undefined),
-  clearAllLocalVideoBlobs: vi.fn().mockResolvedValue(undefined),
-  getLocalVideoBlob: vi.fn(),
-  putLocalVideoBlob: vi.fn(),
-}));
-
-const graphWithLocal: StoryGraph = {
+const graphWithClip: StoryGraph = {
   rootId: "opening",
   nodes: {
     opening: {
       id: "opening",
       title: "Opening",
       subtitle: null,
-      videoUrl: "https://example.com/a.mp4",
-      localVideoKey: "k_test_1",
+      operatorClipName: "01_opening.mp4",
       question: null,
       optionA: null,
       optionB: null,
@@ -31,43 +22,42 @@ const graphWithLocal: StoryGraph = {
 
 beforeEach(() => {
   useMockEventStore.getState().clearActiveFilm();
-  vi.mocked(localVideoStore.deleteLocalVideoBlob).mockClear();
 });
 
 describe("clearActiveFilmIfSavedFilm", () => {
   it("clears operator runtime when the active saved film id matches", () => {
-    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithLocal) as StoryGraph, {
+    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithClip) as StoryGraph, {
       displayName: "Lib",
       eventTitle: "Night",
       savedFilmId: "film_xyz",
     });
     expect(useMockEventStore.getState().activeSavedFilmId).toBe("film_xyz");
-    expect(useMockEventStore.getState().graph.nodes.opening?.videoUrl).toBeTruthy();
+    expect(useMockEventStore.getState().graph.nodes.opening?.operatorClipName).toBe("01_opening.mp4");
 
     useMockEventStore.getState().clearActiveFilmIfSavedFilm("film_xyz");
 
     expect(useMockEventStore.getState().activeSavedFilmId).toBeNull();
-    expect(useMockEventStore.getState().graph.nodes.opening?.videoUrl).toBeNull();
+    expect(useMockEventStore.getState().graph.nodes.opening?.operatorClipName).toBe(
+      EMPTY_STORY_GRAPH.nodes.opening.operatorClipName,
+    );
     expect(useMockEventStore.getState().eventTitle).toBe(MOCK_EVENT.title);
   });
 
   it("does not clear when a different saved film id is passed", () => {
-    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithLocal) as StoryGraph, {
+    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithClip) as StoryGraph, {
       savedFilmId: "film_a",
     });
     useMockEventStore.getState().clearActiveFilmIfSavedFilm("film_b");
     expect(useMockEventStore.getState().activeSavedFilmId).toBe("film_a");
-    expect(useMockEventStore.getState().graph.nodes.opening?.videoUrl).toBeTruthy();
+    expect(useMockEventStore.getState().graph.nodes.opening?.operatorClipName).toBe("01_opening.mp4");
   });
 });
 
 describe("clearCurrentNodeMedia", () => {
-  it("removes remote and local media fields and deletes the IndexedDB key", async () => {
-    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithLocal) as StoryGraph, {});
+  it("is a no-op (clip-based operator workflow)", async () => {
+    useMockEventStore.getState().loadStoryGraph(structuredClone(graphWithClip) as StoryGraph, {});
+    const before = useMockEventStore.getState().graph.nodes.opening?.operatorClipName;
     await useMockEventStore.getState().clearCurrentNodeMedia();
-    const n = useMockEventStore.getState().graph.nodes.opening;
-    expect(n?.videoUrl).toBeNull();
-    expect(n?.localVideoKey).toBeNull();
-    expect(vi.mocked(localVideoStore.deleteLocalVideoBlob)).toHaveBeenCalledWith("k_test_1");
+    expect(useMockEventStore.getState().graph.nodes.opening?.operatorClipName).toBe(before);
   });
 });

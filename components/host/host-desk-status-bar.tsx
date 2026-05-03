@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Monitor, Radio, Users } from "lucide-react";
 
+import { StudioBadge } from "@/components/kasdan";
 import type { RealtimeProbeStatus } from "@/hooks/use-event-room-realtime-probe";
 import type { ShowtimeSyncMode } from "@/lib/showtime/sync-mode";
 import { showtimeSyncModeLabel } from "@/lib/showtime/sync-mode";
@@ -94,32 +95,34 @@ export function HostDeskStatusBar({
           compact ? "gap-2 lg:gap-4" : "gap-3 lg:gap-6",
         )}
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
+        <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2.5 sm:gap-3">
+          <StudioBadge href="/" showSeal className={cn("shrink-0", compact ? "mt-0.5 scale-[0.95]" : "mt-1")} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "size-2.5 shrink-0 rounded-full ring-2 ring-[oklch(1_0_0/0.12)]",
+                  statusHue[liveStatus],
+                )}
+                title={liveStatusLabel}
+              />
+              <h1
+                className={cn(
+                  "truncate font-sans font-semibold tracking-tight text-[var(--kc-cream)]",
+                  compact ? "text-[1.05rem] sm:text-lg" : "text-xl md:text-2xl",
+                )}
+              >
+                {eventTitle}
+              </h1>
+            </div>
+            <p
               className={cn(
-                "size-2.5 shrink-0 rounded-full ring-2 ring-[oklch(1_0_0/0.12)]",
-                statusHue[liveStatus],
-              )}
-              title={liveStatusLabel}
-            />
-            <h1
-              className={cn(
-                "truncate font-sans font-semibold tracking-tight text-[var(--kc-cream)]",
-                compact ? "text-[1.05rem] sm:text-lg" : "text-xl md:text-2xl",
+                "mt-1 font-mono tabular-nums text-[var(--kc-cream-dim)]",
+                compact ? "text-[0.8rem] sm:text-sm" : "text-sm md:text-base",
               )}
             >
-              {eventTitle}
-            </h1>
-          </div>
-          <p
-            className={cn(
-              "mt-1 font-mono tabular-nums text-[var(--kc-cream-dim)]",
-              compact ? "text-[0.8rem] sm:text-sm" : "text-sm md:text-base",
-            )}
-          >
-            Code{" "}
-            <span className="font-semibold text-[oklch(0.88_0.06_82)]">{eventCode}</span>
+              Code{" "}
+              <span className="font-semibold text-[oklch(0.88_0.06_82)]">{eventCode}</span>
             {voteOpen ? (
               <span
                 className={cn(
@@ -130,7 +133,8 @@ export function HostDeskStatusBar({
                 {compact ? "Vote live" : "Voting live"}
               </span>
             ) : null}
-          </p>
+            </p>
+          </div>
         </div>
 
         <div className={cn("flex flex-wrap items-stretch gap-1.5 sm:gap-2", compact && "md:max-w-[58%] lg:max-w-none")}>

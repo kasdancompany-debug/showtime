@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { FilmGrain } from "@/components/cinematic/film-grain";
+import { HelpBulletedList, InlineHelpPanel } from "@/components/help/inline-help-panel";
 import {
   ArtDecoFrame,
   CountdownMedallion,
@@ -173,7 +174,41 @@ export function JoinExperience({ eventCode }: Props) {
       <JoinShell>
         <JoinMessageCard
           title="Could not reach the box office"
-          subtitle="We could not load this screening from the server. Check your connection and try again."
+          subtitle={
+            <span className="block space-y-4 text-left">
+              <span className="block leading-relaxed">
+                We could not load this screening from the server. Check your connection and try again.
+              </span>
+              <InlineHelpPanel
+                summary="Why this failed & what to do"
+                defaultOpen
+                whatThisMeans={
+                  <p>
+                    This phone asked your Showtime deployment for the event behind your join link, and the request
+                    returned an error before the room could load.
+                  </p>
+                }
+                howToFix={
+                  <HelpBulletedList
+                    items={[
+                      "Tap Try again after Wi‑Fi or cellular stabilizes.",
+                      "Ask the host to confirm the site is deployed and Supabase is reachable from the public internet.",
+                      "Try a different browser or disable strict content blockers for this domain.",
+                    ]}
+                  />
+                }
+                commonCauses={
+                  <HelpBulletedList
+                    items={[
+                      "Offline or captive portal (hotel Wi‑Fi login not completed).",
+                      "Temporary outage on the host or Supabase region.",
+                      "Wrong join URL or event code in the link you opened.",
+                    ]}
+                  />
+                }
+              />
+            </span>
+          }
           detail={room.fetchError}
           actions={
             <>
@@ -266,7 +301,41 @@ export function JoinExperience({ eventCode }: Props) {
       <JoinShell>
         <JoinMessageCard
           title="Live connection dropped"
-          subtitle="We could not stay connected to the live room. Check Wi‑Fi or VPN, then retry — your seat on this phone is saved once you have joined."
+          subtitle={
+            <span className="block space-y-4 text-left">
+              <span className="block leading-relaxed">
+                We could not stay connected to the live room. Check Wi‑Fi or VPN, then retry — your seat on this phone
+                is saved once you have joined.
+              </span>
+              <InlineHelpPanel
+                summary="Connection dropped — details"
+                defaultOpen
+                whatThisMeans={
+                  <p>
+                    The live vote and room state stream over a websocket. If it drops, this screen blocks until you
+                    reconnect or leave.
+                  </p>
+                }
+                howToFix={
+                  <HelpBulletedList
+                    items={[
+                      "Tap Reconnect, wait a few seconds, and stay on this tab.",
+                      "Move closer to Wi‑Fi or switch to cellular if the venue network is congested.",
+                      "Ask the host to reload `/host` and confirm Supabase is healthy if everyone drops at once.",
+                    ]}
+                  />
+                }
+                commonCauses={
+                  <HelpBulletedList
+                    items={[
+                      "Phone slept the tab or low-power mode throttled background networking.",
+                      "Venue firewall or VPN interrupting long-lived websocket connections.",
+                    ]}
+                  />
+                }
+              />
+            </span>
+          }
           actions={
             <>
               <GoldButton
@@ -307,26 +376,64 @@ export function JoinExperience({ eventCode }: Props) {
                 The host needs to turn on the live database connection for this deployment. Until then, votes from this
                 link won’t reach other guests or the big screen.
               </span>
-              <details className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left">
-                <summary className="cursor-pointer font-mono text-sm font-semibold uppercase tracking-wider text-[var(--kc-champagne)]/90">
-                  For the person fixing the server
-                </summary>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground md:text-base">
-                  Add{" "}
-                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
-                    NEXT_PUBLIC_SUPABASE_URL
-                  </code>{" "}
-                  and{" "}
-                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
-                    NEXT_PUBLIC_SUPABASE_ANON_KEY
-                  </code>{" "}
-                  in Vercel (or your host) environment variables, then redeploy. Set{" "}
-                  <code className="rounded-md bg-black/40 px-1.5 py-0.5 font-mono text-xs text-sky-100/95 sm:text-sm">
-                    NEXT_PUBLIC_JOIN_ORIGIN
-                  </code>{" "}
-                  to this site’s URL so QR codes match production.
-                </p>
-              </details>
+              <p className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm leading-relaxed text-muted-foreground">
+                If variables are already set in Vercel, run a <strong className="text-[var(--kc-cream)]">new Production deploy</strong>{" "}
+                — <code className="font-mono text-xs text-sky-100/90">NEXT_PUBLIC_*</code> values are baked into the site at{" "}
+                <strong className="text-[var(--kc-cream)]">build</strong> time, not when you open this page.
+              </p>
+              <InlineHelpPanel
+                summary="For the host: Supabase keys in production"
+                whatThisMeans={
+                  <p>
+                    This deployment’s JavaScript was built without both public Supabase settings, so phones cannot open a
+                    shared Realtime room. There is no separate documentation site here — everything needed is in your
+                    host and Supabase dashboards.
+                  </p>
+                }
+                howToFix={
+                  <HelpBulletedList
+                    items={[
+                      "In Vercel (or your host): Environment Variables → Production → add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` exactly as named.",
+                      "In Supabase (separate browser tab): Project Settings → API → copy Project URL and anon public key.",
+                      "Redeploy Production, wait for green, then hard-refresh `/host` and this join page.",
+                    ]}
+                  />
+                }
+                commonCauses={
+                  <HelpBulletedList
+                    items={[
+                      "Keys saved only on Preview, not Production.",
+                      "Redeploy skipped after saving env — old bundles still lack variables.",
+                      "Typo in `NEXT_PUBLIC_` names or accidental trailing spaces in values.",
+                    ]}
+                  />
+                }
+              />
+              <InlineHelpPanel
+                summary="For the host: join URL & QR (NEXT_PUBLIC_JOIN_ORIGIN)"
+                whatThisMeans={
+                  <p>
+                    QR codes and links use a fixed public base URL. If it is missing or points at localhost, guests open
+                    a host their phone cannot reach.
+                  </p>
+                }
+                howToFix={
+                  <HelpBulletedList
+                    items={[
+                      "Set `NEXT_PUBLIC_JOIN_ORIGIN` to this site’s public HTTPS URL with no trailing slash.",
+                      "Redeploy Production, re-open `/host`, and re-share or re-print QR from the operator desk.",
+                    ]}
+                  />
+                }
+                commonCauses={
+                  <HelpBulletedList
+                    items={[
+                      "`NEXT_PUBLIC_JOIN_ORIGIN` never added alongside Supabase keys.",
+                      "Using a disposable preview deployment URL instead of the stable production domain.",
+                    ]}
+                  />
+                }
+              />
             </span>
           }
           actions={
@@ -345,7 +452,7 @@ export function JoinExperience({ eventCode }: Props) {
                   "inline-flex min-h-14 w-full items-center justify-center rounded-2xl border-white/20 text-base [touch-action:manipulation] sm:min-h-[3.75rem]",
                 )}
               >
-                Leave
+                Back home
               </Link>
             </>
           }
@@ -429,18 +536,15 @@ export function JoinExperience({ eventCode }: Props) {
       )}
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-8">
-        <header className="mb-8 flex flex-col gap-3 sm:mb-10">
-          <div className="flex items-center justify-between gap-4">
-            <StudioBadge className="shrink-0 scale-[0.92] sm:scale-95" href="/" showSeal />
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-[var(--kc-gold-muted)]/35 bg-[var(--kc-midnight)]/70 px-3 py-1.5 font-mono text-[0.65rem] uppercase tracking-[0.35em] text-[var(--kc-champagne)]">
-                <Radio className="size-3.5 shrink-0" />
-                Premiere night
-              </div>
-              {room.mode === "supabase" ? (
-                <span className="font-mono text-[0.6rem] text-muted-foreground">Realtime</span>
-              ) : null}
+        <header className="mb-6 flex flex-col gap-3 sm:mb-8">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-[var(--kc-gold-muted)]/35 bg-[var(--kc-midnight)]/70 px-3 py-1.5 font-mono text-[0.65rem] uppercase tracking-[0.35em] text-[var(--kc-champagne)]">
+              <Radio className="size-3.5 shrink-0" />
+              Premiere night
             </div>
+            {room.mode === "supabase" ? (
+              <span className="font-mono text-[0.6rem] text-muted-foreground">Realtime</span>
+            ) : null}
           </div>
           {room.persist?.joined ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-[var(--kc-cream-dim)]">
@@ -612,7 +716,12 @@ function JoinShell({ children }: { children: React.ReactNode }) {
       <TheatreCurtainBackground intensity="subtle" />
       <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.72)]" />
       <FilmGrain />
-      <div className="relative z-[2] flex min-h-0 flex-1 flex-col">{children}</div>
+      <div className="relative z-[2] flex min-h-0 flex-1 flex-col">
+        <div className="sticky top-0 z-40 flex shrink-0 items-center border-b border-white/10 bg-[var(--kc-bg-deep)]/85 px-4 py-3 backdrop-blur-md supports-[padding:max(0px)]:pt-[max(0.65rem,env(safe-area-inset-top))]">
+          <StudioBadge href="/" showSeal className="shrink-0 scale-[0.95] sm:scale-100" />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+      </div>
     </div>
   );
 }

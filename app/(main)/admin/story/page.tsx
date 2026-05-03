@@ -34,7 +34,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { deleteLocalVideoBlob, putLocalVideoBlob } from "@/lib/media/local-video-store";
 import { EMPTY_STORY_GRAPH } from "@/lib/mock-data";
 import { nodePickerLabel } from "@/lib/showtime/node-picker-label";
 import {
@@ -219,8 +218,7 @@ export default function AdminStoryPage() {
           id,
           title: "New beat",
           subtitle: null,
-          videoUrl: null,
-          localVideoKey: null,
+          operatorClipName: "00_new_beat.mp4",
           question: null,
           optionA: null,
           optionB: null,
@@ -336,9 +334,8 @@ export default function AdminStoryPage() {
                 Story builder
               </DisplayHeading>
               <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Branching reels for /host and /screen on this browser.{" "}
-                <strong className="text-foreground/90">IndexedDB video files</strong> never leave this machine — same
-                browser only.
+                Branch map for live voting: clip filenames are cues for the operator (played outside this app). /screen
+                only shows ballots and results.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -418,7 +415,7 @@ export default function AdminStoryPage() {
           ) : (
             <p className="text-xs text-muted-foreground">
               <CheckCircle2 className="mr-1 inline size-3 text-emerald-500" />
-              Structure checks passed — still confirm media URLs and local files on this device.
+              Structure checks passed — confirm clip filenames match your rendered reels.
             </p>
           )}
         </div>
@@ -577,12 +574,6 @@ export default function AdminStoryPage() {
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[0.7rem] leading-relaxed text-amber-950 dark:text-amber-100">
-                    <strong className="font-medium">Local video files</strong> are stored in{" "}
-                    <span className="font-mono">IndexedDB</span> on this browser only. Other computers, other browsers, or
-                    cleared site data cannot play them — use a hosted URL for traveling shows.
-                  </div>
-
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1 sm:col-span-2">
                       <Label className="text-xs">Title</Label>
@@ -598,62 +589,16 @@ export default function AdminStoryPage() {
                       />
                     </div>
                     <div className="space-y-1 sm:col-span-2">
-                      <Label className="text-xs">Video URL</Label>
+                      <Label className="text-xs">Operator clip filename</Label>
                       <Input
-                        value={node.videoUrl ?? ""}
-                        onChange={async (e) => {
-                          const v = e.target.value || null;
-                          const prevLocal = node.localVideoKey;
-                          if (v && prevLocal) {
-                            await deleteLocalVideoBlob(prevLocal).catch(() => {});
-                            patchNode(node.id, { videoUrl: v, localVideoKey: null });
-                          } else {
-                            patchNode(node.id, { videoUrl: v });
-                          }
-                        }}
-                        placeholder="Direct MP4/WebM or YouTube watch URL"
-                        className="h-9 rounded-md font-mono text-[0.7rem]"
+                        value={node.operatorClipName ?? ""}
+                        onChange={(e) => patchNode(node.id, { operatorClipName: e.target.value })}
+                        placeholder="e.g. 01_Opening.mp4"
+                        className="h-9 rounded-md font-mono text-[0.75rem]"
                       />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <Label className="text-xs">Local file (this browser)</Label>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                          type="file"
-                          accept="video/*"
-                          className="max-w-xs cursor-pointer text-xs file:mr-2 file:rounded-md file:border file:border-[var(--bn-line)] file:bg-background file:px-2 file:py-1"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (!file) return;
-                            const prevKey = node.localVideoKey;
-                            const key = `local-${node.id}-${Date.now().toString(36)}`;
-                            try {
-                              await putLocalVideoBlob(key, file);
-                              if (prevKey && prevKey !== key) await deleteLocalVideoBlob(prevKey).catch(() => {});
-                              patchNode(node.id, { localVideoKey: key, videoUrl: null });
-                            } catch {
-                              /* quota */
-                            }
-                          }}
-                        />
-                        {node.localVideoKey ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded-md text-xs"
-                            onClick={async () => {
-                              const k = node.localVideoKey;
-                              if (!k) return;
-                              patchNode(node.id, { localVideoKey: null });
-                              await deleteLocalVideoBlob(k).catch(() => {});
-                            }}
-                          >
-                            Clear local file
-                          </Button>
-                        ) : null}
-                      </div>
+                      <p className="text-[0.65rem] text-muted-foreground">
+                        Shown on /host as the cue for this beat. Playback is manual in your video player.
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <input
@@ -689,11 +634,16 @@ export default function AdminStoryPage() {
                       graph={graph}
                       label={node.optionA?.label ?? ""}
                       nextId={node.optionA?.nextNodeId ?? ""}
+                      nextClipName={node.optionA?.nextClipName ?? ""}
                       ids={orderedIds.filter((x) => graph.nodes[x])}
                       onLabel={(v) =>
                         patchNode(node.id, {
                           optionA: v
-                            ? { label: v, nextNodeId: (node.optionA?.nextNodeId as StoryNodeId) ?? graph.rootId }
+                            ? {
+                                label: v,
+                                nextNodeId: (node.optionA?.nextNodeId as StoryNodeId) ?? graph.rootId,
+                                nextClipName: node.optionA?.nextClipName ?? "",
+                              }
                             : null,
                         })
                       }
@@ -702,10 +652,14 @@ export default function AdminStoryPage() {
                           optionA: node.optionA
                             ? { ...node.optionA, nextNodeId: v as StoryNodeId }
                             : v
-                              ? { label: "Option A", nextNodeId: v as StoryNodeId }
+                              ? { label: "Option A", nextNodeId: v as StoryNodeId, nextClipName: "" }
                               : null,
                         })
                       }
+                      onNextClip={(v) => {
+                        if (!node.optionA) return;
+                        patchNode(node.id, { optionA: { ...node.optionA, nextClipName: v } });
+                      }}
                     />
                     <BranchFields
                       title="Option B"
@@ -713,11 +667,16 @@ export default function AdminStoryPage() {
                       graph={graph}
                       label={node.optionB?.label ?? ""}
                       nextId={node.optionB?.nextNodeId ?? ""}
+                      nextClipName={node.optionB?.nextClipName ?? ""}
                       ids={orderedIds.filter((x) => graph.nodes[x])}
                       onLabel={(v) =>
                         patchNode(node.id, {
                           optionB: v
-                            ? { label: v, nextNodeId: (node.optionB?.nextNodeId as StoryNodeId) ?? graph.rootId }
+                            ? {
+                                label: v,
+                                nextNodeId: (node.optionB?.nextNodeId as StoryNodeId) ?? graph.rootId,
+                                nextClipName: node.optionB?.nextClipName ?? "",
+                              }
                             : null,
                         })
                       }
@@ -726,10 +685,14 @@ export default function AdminStoryPage() {
                           optionB: node.optionB
                             ? { ...node.optionB, nextNodeId: v as StoryNodeId }
                             : v
-                              ? { label: "Option B", nextNodeId: v as StoryNodeId }
+                              ? { label: "Option B", nextNodeId: v as StoryNodeId, nextClipName: "" }
                               : null,
                         })
                       }
+                      onNextClip={(v) => {
+                        if (!node.optionB) return;
+                        patchNode(node.id, { optionB: { ...node.optionB, nextClipName: v } });
+                      }}
                     />
                   </div>
 
@@ -739,7 +702,7 @@ export default function AdminStoryPage() {
                       Load on operator desk
                     </Button>
                     <p className="w-full text-[0.65rem] text-muted-foreground lg:w-auto lg:flex-1">
-                      Confirms on the banner above. Use <span className="font-mono">Open /host</span> to drive playback.
+                      Confirms on the banner above. Use <span className="font-mono">Open /host</span> to run votes.
                     </p>
                   </div>
                 </CardContent>
@@ -762,8 +725,10 @@ function BranchFields({
   graph,
   label,
   nextId,
+  nextClipName,
   onLabel,
   onNext,
+  onNextClip,
   ids,
 }: {
   title: string;
@@ -771,8 +736,10 @@ function BranchFields({
   graph: StoryGraph;
   label: string;
   nextId: string;
+  nextClipName: string;
   onLabel: (v: string) => void;
   onNext: (v: string) => void;
+  onNextClip: (v: string) => void;
   ids: StoryNodeId[];
 }) {
   return (
@@ -801,6 +768,15 @@ function BranchFields({
             </option>
           ))}
         </select>
+      </div>
+      <div className="mt-2 space-y-1">
+        <Label className="text-[0.65rem]">Next clip if this branch wins</Label>
+        <Input
+          value={nextClipName}
+          onChange={(e) => onNextClip(e.target.value)}
+          placeholder="e.g. 02A_follow_david.mp4"
+          className="h-8 rounded-md font-mono text-[0.7rem]"
+        />
       </div>
     </div>
   );

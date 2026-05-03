@@ -1,17 +1,13 @@
 import type { StoryEnginePhase } from "@/lib/story-engine/engine-types";
 
-/** High-level operator UX state for /host (one obvious next step). */
+/** High-level operator UX state for /host (vote-first; no in-app video transport). */
 export type OperatorEventState =
   | "draft"
   | "ready"
-  | "playing"
-  | "paused"
   | "voting_open"
   | "voting_closed"
   | "winner_revealed"
-  | "advancing"
-  | "ended"
-  | "error";
+  | "ended";
 
 export type OperatorActionHandlers = {
   startEvent: () => void;
@@ -71,14 +67,17 @@ export type OperatorActionContext = {
  * Maps live store/engine signals to a single operator UX state.
  */
 export function deriveOperatorEventState(input: {
-  projectionSurfaceFault: string | null;
+  /** Ignored — kept for call-site compatibility; projection/video alerts removed. */
+  projectionSurfaceFault?: string | null;
   showEnded: boolean;
   eventStarted: boolean;
   enginePhase: StoryEnginePhase;
-  playbackIsPlaying: boolean;
-  playbackPositionSec: number;
+  playbackIsPlaying?: boolean;
+  playbackPositionSec?: number;
 }): OperatorEventState {
-  if (input.projectionSurfaceFault?.trim()) return "error";
+  void input.projectionSurfaceFault;
+  void input.playbackIsPlaying;
+  void input.playbackPositionSec;
   if (input.showEnded) return "ended";
   if (!input.eventStarted) return "draft";
 
@@ -89,11 +88,7 @@ export function deriveOperatorEventState(input: {
   if (ep === "awaiting_reveal" || ep === "tiebreak") return "voting_closed";
   if (ep === "revealed") return "winner_revealed";
 
-  if (ep === "idle") {
-    if (input.playbackIsPlaying) return "playing";
-    const atHead = input.playbackPositionSec <= 0.5;
-    return atHead ? "ready" : "paused";
-  }
+  if (ep === "idle") return "ready";
 
   return "ready";
 }
@@ -168,18 +163,6 @@ export function getNextOperatorAction(
   };
 
   switch (eventState) {
-    case "error": {
-      return {
-        state: eventState,
-        primaryActionLabel: "Dismiss alert",
-        primaryActionHandler: handlers.acknowledgeProjectionFault,
-        helperText: "Clear the projection warning after you’ve fixed the issue on /screen or in Story builder.",
-        allowedSecondaryActions: [],
-        disabledReason: null,
-        hideTransportPlay: false,
-        hideTransportPause: false,
-      };
-    }
     case "ended": {
       return {
         state: eventState,
@@ -195,15 +178,15 @@ export function getNextOperatorAction(
     case "draft": {
       const blocked = !ctx.productionStoryOk;
       const disabledReason = blocked
-        ? "Fix story problems in Story builder — every beat needs video before you can start."
+        ? "Fix story problems in Story builder — clip names, vote copy, and branches must validate before you can start."
         : null;
       return {
         state: eventState,
         primaryActionLabel: "Start Event",
         primaryActionHandler: blocked ? null : handlers.startEvent,
         helperText: blocked
-          ? "This story doesn’t pass production checks (usually missing video on a beat)."
-          : "Unlock the room for /screen and phones, then roll the opening beat.",
+          ? "This story doesn’t pass checks (usually a missing operator clip name or branch wiring)."
+          : "Unlock the room for /screen and phones, then run the opening beat from your player.",
         allowedSecondaryActions: [],
         disabledReason,
         hideTransportPlay: false,
@@ -237,58 +220,16 @@ export function getNextOperatorAction(
         };
       }
 
-      const noMedia = !ctx.hasPlayableMedia;
       return {
         state: eventState,
-        primaryActionLabel: "Play",
-        primaryActionHandler: noMedia ? null : handlers.play,
-        helperText: noMedia
-          ? "Add a video URL or local file to this beat in Story builder before you roll."
-          : "Roll this beat on /screen when you’re ready.",
+        primaryActionLabel: "At segment",
+        primaryActionHandler: null,
+        helperText:
+          "Play the current clip file on your projector deck. When you reach a fork, tap Open Vote — this app does not start or sync video files.",
         allowedSecondaryActions: baseSecondaries(true, false, false),
-        disabledReason: noMedia ? "No playable video on this beat yet." : null,
-        hideTransportPlay: !noMedia,
-        hideTransportPause: false,
-      };
-    }
-    case "paused": {
-      const noMedia = !ctx.hasPlayableMedia;
-      return {
-        state: eventState,
-        primaryActionLabel: "Resume",
-        primaryActionHandler: noMedia ? null : handlers.play,
-        helperText: noMedia
-          ? "You need media on this beat before playback can continue."
-          : "Resume playback on the current beat.",
-        allowedSecondaryActions: baseSecondaries(true, false, false),
-        disabledReason: noMedia ? "No playable video on this beat yet." : null,
-        hideTransportPlay: !noMedia,
-        hideTransportPause: false,
-      };
-    }
-    case "playing": {
-      if (ctx.voteable) {
-        return {
-          state: eventState,
-          primaryActionLabel: "Open Vote",
-          primaryActionHandler: handlers.openVote,
-          helperText: "When you reach the fork, open voting so phones can pick A or B.",
-          allowedSecondaryActions: baseSecondaries(true, false, false),
-          disabledReason: null,
-          hideTransportPlay: false,
-          hideTransportPause: false,
-        };
-      }
-      const noMedia = !ctx.hasPlayableMedia;
-      return {
-        state: eventState,
-        primaryActionLabel: "Pause",
-        primaryActionHandler: noMedia ? null : handlers.pause,
-        helperText: "Pause the reel when you need to talk to the room or fix something.",
-        allowedSecondaryActions: baseSecondaries(true, false, false),
-        disabledReason: noMedia ? "No playable video on this beat yet." : null,
-        hideTransportPlay: false,
-        hideTransportPause: !noMedia,
+        disabledReason: null,
+        hideTransportPlay: true,
+        hideTransportPause: true,
       };
     }
     case "voting_open": {
@@ -332,23 +273,11 @@ export function getNextOperatorAction(
         state: eventState,
         primaryActionLabel: "Advance Branch",
         primaryActionHandler: handlers.advanceBranch,
-        helperText: "Move the playhead into the winning clip.",
+        helperText: "After the room has read the winner, advance so the next clip name is active for the operator.",
         allowedSecondaryActions: baseSecondaries(true, false, false),
         disabledReason: null,
-        hideTransportPlay: false,
-        hideTransportPause: false,
-      };
-    }
-    case "advancing": {
-      return {
-        state: eventState,
-        primaryActionLabel: "Continue",
-        primaryActionHandler: null,
-        helperText: "Follow playback on /screen — reserved for future automation.",
-        allowedSecondaryActions: baseSecondaries(true, false, false),
-        disabledReason: "Nothing to tap here yet — follow playback on /screen.",
-        hideTransportPlay: false,
-        hideTransportPause: false,
+        hideTransportPlay: true,
+        hideTransportPause: true,
       };
     }
     default: {

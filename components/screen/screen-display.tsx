@@ -9,6 +9,7 @@ import { ScreenHostedVideo } from "@/components/screen/screen-hosted-video";
 import { ScreenTitleCardFrame } from "@/components/screen/screen-title-card-frame";
 import { useHostSupabaseRoomSync } from "@/hooks/use-host-supabase-room-sync";
 import { useLocalPreviewVoteMirror } from "@/hooks/use-local-preview-vote-mirror";
+import { useProjectorFullscreenLock } from "@/hooks/use-projector-fullscreen-lock";
 import { useScreenSupabaseDisplay } from "@/hooks/use-screen-supabase-display";
 import { useScreenSurfaceHeartbeat } from "@/hooks/use-screen-surface-heartbeat";
 import { useShowtimeConnection } from "@/hooks/use-showtime-connection";
@@ -180,6 +181,15 @@ export function ScreenDisplay() {
   const hideMainForPurePlayback = Boolean(
     mountVideoStage && resolvedSrc && (st === "playing" || st === "paused"),
   );
+
+  useProjectorFullscreenLock([
+    st,
+    screen.currentNode?.id,
+    resolvedSrc,
+    mountVideoStage,
+    hideMainForPurePlayback,
+    screen.event?.playback_command_id,
+  ]);
 
   const roomStatus: "ready" | "playing" | "paused" =
     st === "ready" || st === "playing" || st === "paused" ? st : "ready";

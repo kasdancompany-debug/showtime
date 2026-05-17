@@ -8,23 +8,11 @@ import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import type { PlaybackCmd } from "@/lib/supabase/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isProjectorArmed, markProjectorArmed } from "@/lib/showtime/projector-arm";
+import { enterProjectorFullscreen } from "@/lib/showtime/projector-fullscreen";
 import { cn } from "@/lib/utils";
 
 const FIT_LS_KEY = "kasdan.screen.videoObjectFit";
 const LOAD_STALL_MS = 45_000;
-
-/** Browsers usually block audio until there is a user gesture on this tab — we try unmuted first, then fall back. */
-function tryEnterBrowserFullscreen(): void {
-  if (typeof document === "undefined") return;
-  try {
-    if (document.fullscreenElement) return;
-    const root = document.documentElement;
-    const req = root.requestFullscreen?.bind(root) ?? (root as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen?.bind(root);
-    if (req) void req.call(root).catch(() => {});
-  } catch {
-    /* policy / denied */
-  }
-}
 
 type ScreenRoomStatus = "ready" | "playing" | "paused";
 
@@ -210,7 +198,7 @@ export function ScreenHostedVideo({
     setMuted(false);
     setShowUnmute(false);
     setNeedsSoundTap(false);
-    tryEnterBrowserFullscreen();
+    void enterProjectorFullscreen();
     void el.play().catch(() => {
       setFaultKind("autoplay_blocked");
       setFaultCopy({
@@ -324,7 +312,7 @@ export function ScreenHostedVideo({
             setShowUnmute(false);
             setNeedsSoundTap(false);
             clearFault();
-            if (preferSound) tryEnterBrowserFullscreen();
+            if (preferSound) void enterProjectorFullscreen();
             return true;
           }
           if (result === "muted") {

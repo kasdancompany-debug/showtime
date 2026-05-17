@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Expand } from "lucide-react";
 
+import {
+  enterProjectorFullscreen,
+  exitProjectorFullscreen,
+  isProjectorFullscreenActive,
+  wantsProjectorFullscreen,
+} from "@/lib/showtime/projector-fullscreen";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,10 +21,10 @@ export function ScreenFullscreenButton({
   className?: string;
   variant?: "floating" | "inline";
 }) {
-  const [active, setActive] = useState(false);
+  const [active, setActive] = useState(() => isProjectorFullscreenActive());
 
   useEffect(() => {
-    const onChange = () => setActive(Boolean(document.fullscreenElement));
+    const onChange = () => setActive(isProjectorFullscreenActive());
     document.addEventListener("fullscreenchange", onChange);
     document.addEventListener("webkitfullscreenchange", onChange as EventListener);
     return () => {
@@ -28,23 +34,15 @@ export function ScreenFullscreenButton({
   }, []);
 
   const toggle = useCallback(async () => {
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-      } else {
-        const el = document.documentElement;
-        if (el.requestFullscreen) await el.requestFullscreen();
-        else if ((el as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
-          await (el as unknown as { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen();
-        }
-      }
-    } catch {
-      /* Safari / policy may block without gesture — user can use F11 */
+    if (isProjectorFullscreenActive()) {
+      await exitProjectorFullscreen();
+    } else {
+      await enterProjectorFullscreen();
     }
   }, []);
 
-  /** While fullscreen, hide the control so the slate/video stays clean; Esc still exits (browser `fullscreenchange`). */
-  if (active) return null;
+  /** Sticky lock is on — stay clean; Esc clears lock and exits. */
+  if (active && wantsProjectorFullscreen()) return null;
 
   return (
     <button

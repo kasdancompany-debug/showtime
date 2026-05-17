@@ -101,20 +101,26 @@ function isBenignPlayInterrupt(e: unknown): boolean {
 
 type PlayAttempt = "unmuted" | "muted" | "blocked";
 
+function applyElementAudio(el: HTMLVideoElement, wantSound: boolean): void {
+  el.muted = !wantSound;
+  el.volume = 1;
+  el.defaultMuted = !wantSound;
+}
+
 /** Prefer sound when the projector tab was armed (one tap per session). Otherwise start muted so the reel still rolls. */
 async function attemptProjectorPlayback(el: HTMLVideoElement, preferSound: boolean): Promise<PlayAttempt> {
   const tryUnmuted = async (): Promise<boolean> => {
-    el.muted = false;
+    applyElementAudio(el, true);
     try {
       await el.play();
-      return true;
+      return el.muted === false;
     } catch (e) {
       if (e instanceof DOMException && e.name === "NotAllowedError") return false;
       throw e;
     }
   };
   const tryMuted = async (): Promise<boolean> => {
-    el.muted = true;
+    applyElementAudio(el, false);
     try {
       await el.play();
       return true;
@@ -154,9 +160,8 @@ export function ScreenHostedVideo({
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const client = useMemo(() => createSupabaseBrowserClient(), []);
-  /** Prefer unmuted for projector room; may be forced true if the browser blocks unmuted play(). */
-  const [muted, setMuted] = useState(false);
-  const [showUnmute, setShowUnmute] = useState(true);
+  /** UI only — never bind to `<video muted>` or React will override DOM audio after play(). */
+  const [audioLocked, setAudioLocked] = useState(() => !isProjectorArmed());
   const [objectFit, setObjectFit] = useState<"contain" | "cover">("contain");
   const [faultKind, setFaultKind] = useState<ScreenVideoFaultKind>("none");
   const [faultCopy, setFaultCopy] = useState<{ headline: string; hint: string } | null>(null);
@@ -194,9 +199,8 @@ export function ScreenHostedVideo({
     const el = ref.current;
     if (!el) return;
     markProjectorArmed();
-    el.muted = false;
-    setMuted(false);
-    setShowUnmute(false);
+    applyElementAudio(el, true);
+    setAudioLocked(false);
     setNeedsSoundTap(false);
     void enterProjectorFullscreen();
     void el.play().catch(() => {
@@ -210,10 +214,10 @@ export function ScreenHostedVideo({
   }, [clearFault]);
 
   useEffect(() => {
+    const el = ref.current;
     const armed = isProjectorArmed();
-    setMuted(!armed);
-    setShowUnmute(!armed);
-    setNeedsSoundTap(false);
+    if (el && armed) applyElementAudio(el, true);
+    setAudioLocked(!armed);
     clearFault();
   }, [src, mediaInstanceId, clearFault]);
 
@@ -248,13 +252,23 @@ export function ScreenHostedVideo({
     const onReadyEnough = () => {
       if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) disarmLoadTimeout();
     };
+    const onPlaying = () => {
+      disarmLoadTimeout();
+      if (isProjectorArmed() && el.muted) {
+        applyElementAudio(el, true);
+        if (!el.muted) {
+          setAudioLocked(false);
+          setNeedsSoundTap(false);
+        }
+      }
+    };
     el.addEventListener("loadeddata", onReadyEnough);
     el.addEventListener("canplay", onReadyEnough);
-    el.addEventListener("playing", disarmLoadTimeout);
+    el.addEventListener("playing", onPlaying);
     return () => {
       el.removeEventListener("loadeddata", onReadyEnough);
       el.removeEventListener("canplay", onReadyEnough);
-      el.removeEventListener("playing", disarmLoadTimeout);
+      el.removeEventListener("playing", onPlaying);
     };
   }, [src, mediaInstanceId, disarmLoadTimeout]);
 
@@ -308,17 +322,26 @@ export function ScreenHostedVideo({
           const result = await attemptProjectorPlayback(el, preferSound);
 
           if (result === "unmuted") {
-            setMuted(false);
-            setShowUnmute(false);
+            applyElementAudio(el, true);
+            setAudioLocked(false);
             setNeedsSoundTap(false);
             clearFault();
             if (preferSound) void enterProjectorFullscreen();
             return true;
           }
           if (result === "muted") {
-            setMuted(true);
-            setShowUnmute(true);
-            setNeedsSoundTap(true);
+            applyElementAudio(el, false);
+            if (preferSound && !el.paused) {
+              el.muted = false;
+              el.volume = 1;
+            }
+            if (!el.muted) {
+              setAudioLocked(false);
+              setNeedsSoundTap(false);
+            } else {
+              setAudioLocked(true);
+              setNeedsSoundTap(true);
+            }
             clearFault();
             return true;
           }
@@ -392,7 +415,6 @@ export function ScreenHostedVideo({
         )}
         src={src}
         playsInline
-        muted={muted}
         autoPlay={false}
         controls={false}
         preload="metadata"
@@ -484,7 +506,7 @@ export function ScreenHostedVideo({
               </button>
             </div>
           </div>
-          {showUnmute && muted && !needsSoundTap ? (
+          {audioLocked && !needsSoundTap ? (
             <div className="flex justify-center">
               <button
                 type="button"

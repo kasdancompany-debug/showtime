@@ -611,9 +611,7 @@ export function ScreenDisplay() {
         "select-none [-webkit-user-select:none] [touch-action:none]",
       )}
     >
-      {!blockingLoad && !disconnected && !hideMainForPurePlayback && !isPreShowLobby ? (
-        <ScreenFullscreenButton />
-      ) : null}
+      {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
 
       {mountVideoStage && ev && resolvedSrc && screen.currentNode ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">

@@ -14,6 +14,7 @@ import { useShowtimeConnection } from "@/hooks/use-showtime-connection";
 import { useShowtimeHostDiagnostics } from "@/hooks/use-showtime-host-diagnostics";
 import { LOOPBACK_WARNING } from "@/lib/join/get-join-url";
 import { getJoinUrl } from "@/lib/join/get-join-url";
+import { openOrFocusProjector } from "@/lib/showtime/projector-arm";
 import { showtimeSyncModeLabel } from "@/lib/showtime/sync-mode";
 import { hasStoryVideoUrl } from "@/lib/showtime/video-url";
 import type { StoryNodeRow } from "@/lib/supabase/event-room";
@@ -221,7 +222,7 @@ export function HostRemoteDesk() {
   );
 
   const testScreenConnection = useCallback(() => {
-    window.open("/screen", "_blank", "noopener,noreferrer");
+    openOrFocusProjector(false);
     setScreenTestNotice(
       diagnostics.screenLikelyConnected
         ? "Opened /screen in a new tab. This room is already receiving projector heartbeats."
@@ -342,17 +343,15 @@ export function HostRemoteDesk() {
             {op.event?.title ?? "Venue live control"}
           </h1>
         </div>
-        <Link
-          href="/screen"
-          target="_blank"
-          rel="noreferrer"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "shrink-0 rounded-lg border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] text-[var(--kc-cream)]",
-          )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 rounded-lg border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] text-[var(--kc-cream)]"
+          onClick={() => openOrFocusProjector(false)}
         >
           Open /screen
-        </Link>
+        </Button>
       </header>
 
       {joinSiteMismatch ? (
@@ -615,8 +614,8 @@ export function HostRemoteDesk() {
         >
           <CardHeader className="shrink-0 space-y-0.5 px-3 pb-0 pt-0">
             <CardTitle className="text-sm font-semibold text-[var(--kc-cream)]">Projector (changes the screen)</CardTitle>
-            <CardDescription className="text-[10px] text-[var(--kc-cream-dim)]">
-              Output is sent to <span className="font-mono">/screen</span> in this room.
+            <CardDescription className="text-[10px] leading-snug text-[var(--kc-cream-dim)]">
+              Output is sent to <span className="font-mono">/screen</span> in this room. The projector tab needs one tap on the picture per show for sound (browser policy); after that, Play on screen starts reels with audio.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 px-3 pb-2 pt-0">

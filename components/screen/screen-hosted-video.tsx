@@ -7,6 +7,7 @@ import { StudioBadge } from "@/components/kasdan";
 import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import type { PlaybackCmd } from "@/lib/supabase/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { isProjectorArmed, markProjectorArmed } from "@/lib/showtime/projector-arm";
 import { cn } from "@/lib/utils";
 
 const FIT_LS_KEY = "kasdan.screen.videoObjectFit";
@@ -110,6 +111,41 @@ function isBenignPlayInterrupt(e: unknown): boolean {
   return false;
 }
 
+type PlayAttempt = "unmuted" | "muted" | "blocked";
+
+/** Prefer sound when the projector tab was armed (one tap per session). Otherwise start muted so the reel still rolls. */
+async function attemptProjectorPlayback(el: HTMLVideoElement, preferSound: boolean): Promise<PlayAttempt> {
+  const tryUnmuted = async (): Promise<boolean> => {
+    el.muted = false;
+    try {
+      await el.play();
+      return true;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "NotAllowedError") return false;
+      throw e;
+    }
+  };
+  const tryMuted = async (): Promise<boolean> => {
+    el.muted = true;
+    try {
+      await el.play();
+      return true;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "NotAllowedError") return false;
+      throw e;
+    }
+  };
+
+  if (preferSound) {
+    if (await tryUnmuted()) return "unmuted";
+    if (await tryMuted()) return "muted";
+    return "blocked";
+  }
+  if (await tryMuted()) return "muted";
+  if (await tryUnmuted()) return "unmuted";
+  return "blocked";
+}
+
 /**
  * Full-viewport HTML5 player: Supabase `playback_command` + `playback_command_id` only advance
  * `lastApplied` after a command actually runs, so a later `playing` + `play` update still applies.
@@ -136,6 +172,7 @@ export function ScreenHostedVideo({
   const [objectFit, setObjectFit] = useState<"contain" | "cover">("contain");
   const [faultKind, setFaultKind] = useState<ScreenVideoFaultKind>("none");
   const [faultCopy, setFaultCopy] = useState<{ headline: string; hint: string } | null>(null);
+  const [needsSoundTap, setNeedsSoundTap] = useState(false);
   const lastAppliedCommandId = useRef<string | null>(null);
   const loadTimerRef = useRef<number | undefined>(undefined);
 
@@ -164,31 +201,31 @@ export function ScreenHostedVideo({
     setFaultCopy(null);
   }, []);
 
-  /** User tapped this tab — retries unmuted play and dismisses the overlay when it works. */
+  /** One tap on the projector picture — arms this tab for sound on later operator cues. */
   const recoverPlaybackFromUserGesture = useCallback(() => {
     const el = ref.current;
     if (!el) return;
+    markProjectorArmed();
     el.muted = false;
     setMuted(false);
     setShowUnmute(false);
+    setNeedsSoundTap(false);
     tryEnterBrowserFullscreen();
-    void el
-      .play()
-      .then(() => clearFault())
-      .catch((e) => {
-        if (e instanceof DOMException && e.name === "NotAllowedError") {
-          setFaultKind("autoplay_blocked");
-          setFaultCopy({
-            headline: "Still blocked",
-            hint: "Ask the operator to press Play on the desk again, then tap Sound & fullscreen once more.",
-          });
-        }
+    void el.play().catch(() => {
+      setFaultKind("autoplay_blocked");
+      setFaultCopy({
+        headline: "Still blocked",
+        hint: "Tap the picture again, or use F11 for fullscreen.",
       });
+    });
+    clearFault();
   }, [clearFault]);
 
   useEffect(() => {
-    setMuted(false);
-    setShowUnmute(true);
+    const armed = isProjectorArmed();
+    setMuted(!armed);
+    setShowUnmute(!armed);
+    setNeedsSoundTap(false);
     clearFault();
   }, [src, mediaInstanceId, clearFault]);
 
@@ -273,66 +310,36 @@ export function ScreenHostedVideo({
           el.pause();
           return true;
         }
-        case "play": {
-          if (roomStatus !== "playing") return false;
-          if (startPositionSeconds > 0) el.currentTime = startPositionSeconds;
-          el.muted = false;
-          setMuted(false);
-          try {
-            await el.play();
-            tryEnterBrowserFullscreen();
-          } catch (e) {
-            if (e instanceof DOMException && e.name === "NotAllowedError") {
-              try {
-                el.muted = true;
-                setMuted(true);
-                await el.play();
-                tryEnterBrowserFullscreen();
-                clearFault();
-              } catch {
-                setFaultKind("autoplay_blocked");
-                setFaultCopy({
-                  headline: "Browser blocked playback",
-                  hint: "Press Play again on the operator desk if needed, then tap Sound & fullscreen on this tab once (browser policy).",
-                });
-                reportFault("Autoplay / play() blocked (NotAllowedError)");
-                return true;
-              }
-              return true;
-            }
-            throw e;
-          }
-          return true;
-        }
+        case "play":
         case "restart": {
           if (roomStatus !== "playing") return false;
-          el.currentTime = 0;
-          el.muted = false;
-          setMuted(false);
-          try {
-            await el.play();
-            tryEnterBrowserFullscreen();
-          } catch (e) {
-            if (e instanceof DOMException && e.name === "NotAllowedError") {
-              try {
-                el.muted = true;
-                setMuted(true);
-                await el.play();
-                tryEnterBrowserFullscreen();
-                clearFault();
-              } catch {
-                setFaultKind("autoplay_blocked");
-                setFaultCopy({
-                  headline: "Browser blocked playback",
-                  hint: "Press Play on the operator desk again if needed, then tap Sound & fullscreen on this tab once.",
-                });
-                reportFault("Autoplay / play() blocked on restart");
-                return true;
-              }
-              return true;
-            }
-            throw e;
+          if (playbackCommand === "restart") el.currentTime = 0;
+          else if (startPositionSeconds > 0) el.currentTime = startPositionSeconds;
+
+          const preferSound = isProjectorArmed();
+          const result = await attemptProjectorPlayback(el, preferSound);
+
+          if (result === "unmuted") {
+            setMuted(false);
+            setShowUnmute(false);
+            setNeedsSoundTap(false);
+            clearFault();
+            if (preferSound) tryEnterBrowserFullscreen();
+            return true;
           }
+          if (result === "muted") {
+            setMuted(true);
+            setShowUnmute(true);
+            setNeedsSoundTap(true);
+            clearFault();
+            return true;
+          }
+          setFaultKind("autoplay_blocked");
+          setFaultCopy({
+            headline: "Browser blocked playback",
+            hint: "Tap anywhere on the picture once to start the reel (browser policy).",
+          });
+          reportFault("Autoplay / play() blocked (NotAllowedError)");
           return true;
         }
         default:
@@ -423,6 +430,22 @@ export function ScreenHostedVideo({
         }}
       />
 
+      {needsSoundTap && !showFaultOverlay && !visuallyObscured ? (
+        <button
+          type="button"
+          className="absolute inset-0 z-[45] flex cursor-pointer flex-col items-center justify-end bg-gradient-to-t from-black/75 via-black/20 to-transparent pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-24"
+          onClick={recoverPlaybackFromUserGesture}
+          aria-label="Tap for sound and fullscreen"
+        >
+          <p className="max-w-lg px-6 text-center font-sans text-[clamp(0.95rem,2.2vw,1.2rem)] font-medium text-white/90">
+            Tap anywhere for sound & fullscreen
+          </p>
+          <p className="mt-2 px-6 text-center font-sans text-[clamp(0.75rem,1.6vw,0.9rem)] text-white/55">
+            Once per show — later reels start with sound from the operator desk.
+          </p>
+        </button>
+      ) : null}
+
       {showFaultOverlay ? (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center">
           <p className="text-[clamp(1.25rem,4vw,2rem)] font-semibold leading-snug text-red-200/95">{faultCopy.headline}</p>
@@ -433,7 +456,7 @@ export function ScreenHostedVideo({
               className="rounded-full bg-white/15 px-6 py-3 text-base font-medium text-white ring-1 ring-white/35 backdrop-blur-sm hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80"
               onClick={recoverPlaybackFromUserGesture}
             >
-              Sound & fullscreen
+              Tap to start
             </button>
           ) : null}
           {faultKind !== "autoplay_blocked" ? (
@@ -473,7 +496,7 @@ export function ScreenHostedVideo({
               </button>
             </div>
           </div>
-          {showUnmute && muted ? (
+          {showUnmute && muted && !needsSoundTap ? (
             <div className="flex justify-center">
               <button
                 type="button"

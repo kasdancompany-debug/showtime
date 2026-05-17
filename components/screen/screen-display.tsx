@@ -281,12 +281,7 @@ export function ScreenDisplay() {
           <div className="mt-12 flex w-full max-w-[min(96vw,52rem)] flex-col items-center gap-10 md:mt-14">
             <p className={cn(eyebrow, "w-full text-center")}>The audience has chosen…</p>
             <div className="grid w-full grid-cols-1 gap-10 md:grid-cols-2 md:gap-x-14 md:gap-y-8 lg:gap-x-16">
-              <div
-                className={cn(
-                  "flex flex-col items-center text-center",
-                  localWinner !== "A" && "md:order-2",
-                )}
-              >
+              <div className="flex flex-col items-center text-center">
                 <p className={eyebrow}>Option A</p>
                 <p
                   className={cn(
@@ -298,12 +293,7 @@ export function ScreenDisplay() {
                   {localA}
                 </p>
               </div>
-              <div
-                className={cn(
-                  "flex flex-col items-center text-center",
-                  localWinner !== "B" && "md:order-2",
-                )}
-              >
+              <div className="flex flex-col items-center text-center">
                 <p className={eyebrow}>Option B</p>
                 <p
                   className={cn(
@@ -548,7 +538,7 @@ export function ScreenDisplay() {
         <div className="flex w-full max-w-[min(96vw,52rem)] flex-col items-center">
           <p className={cn(eyebrow, "text-center")}>The audience has chosen…</p>
           <div className="mt-10 grid w-full grid-cols-1 gap-10 md:grid-cols-2 md:gap-x-14 md:gap-y-8 lg:gap-x-16">
-            <div className={cn("flex flex-col items-center text-center", w !== "A" && "md:order-2")}>
+            <div className="flex flex-col items-center text-center">
               <p className={eyebrow}>Option A</p>
               <p
                 className={cn(
@@ -560,7 +550,7 @@ export function ScreenDisplay() {
                 {aLab}
               </p>
             </div>
-            <div className={cn("flex flex-col items-center text-center", w !== "B" && "md:order-2")}>
+            <div className="flex flex-col items-center text-center">
               <p className={eyebrow}>Option B</p>
               <p
                 className={cn(

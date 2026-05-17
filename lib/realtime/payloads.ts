@@ -55,4 +55,6 @@ export type EventRealtimePayload =
       kind: "video_error" | "video_recovered";
       message: string;
       nodeId?: StoryNodeId;
-    };
+    }
+  /** /host → /screen: operator pressed Play (same click as opening the projector window) */
+  | { type: "projector_play_gesture"; sentAt: number };

@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
+import { openOrFocusProjector } from "@/lib/showtime/projector-arm";
 import { MOCK_EVENT } from "@/lib/mock-data";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { friendlySupabaseError } from "@/lib/supabase/operator-errors";
@@ -454,6 +456,15 @@ export function useOperatorSupabaseRoom() {
     try {
       const anon = await tryEnsureAnonymousSession(supabase);
       if (!anon.ok) throw new Error(anon.message);
+      const willStartPlayback =
+        event &&
+        (event.status === "ready" || event.status === "paused" || event.status === "winner_revealed");
+      if (willStartPlayback) {
+        openOrFocusProjector(true);
+        void broadcastEventSync(supabase, event.id, { type: "projector_play_gesture", sentAt: Date.now() });
+      } else {
+        openOrFocusProjector(false);
+      }
       await primary.run();
       await loadEvent();
     } catch (e) {
@@ -461,7 +472,7 @@ export function useOperatorSupabaseRoom() {
     } finally {
       setBusy(false);
     }
-  }, [supabase, primary, loadEvent]);
+  }, [supabase, primary, loadEvent, event]);
 
   const resetEventToStart = useCallback(async () => {
     if (!supabase || !event) return;
@@ -590,11 +601,15 @@ export function useOperatorSupabaseRoom() {
 
   const playbackPlay = useCallback(async () => {
     if (!event) return;
+    openOrFocusProjector(true);
+    if (supabase && event.id) {
+      void broadcastEventSync(supabase, event.id, { type: "projector_play_gesture", sentAt: Date.now() });
+    }
     await runPlaybackPatch({
       status: "playing",
       ...withPlaybackCommand("play", { playback_position_seconds: 0 }),
     });
-  }, [event, runPlaybackPatch]);
+  }, [event, runPlaybackPatch, supabase]);
 
   const playbackPause = useCallback(async () => {
     if (!event) return;
@@ -606,10 +621,14 @@ export function useOperatorSupabaseRoom() {
 
   const playbackRestart = useCallback(async () => {
     if (!event) return;
+    openOrFocusProjector(true);
+    if (supabase && event.id) {
+      void broadcastEventSync(supabase, event.id, { type: "projector_play_gesture", sentAt: Date.now() });
+    }
     await runPlaybackPatch({
       ...withPlaybackCommand("restart"),
     });
-  }, [event, runPlaybackPatch]);
+  }, [event, runPlaybackPatch, supabase]);
 
   const markVideoEnded = useCallback(async () => {
     if (!event) return;

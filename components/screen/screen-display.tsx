@@ -175,7 +175,16 @@ export function ScreenDisplay() {
       screen.event?.id &&
       screen.currentNode &&
       resolvedSrc &&
-      (st === "ready" || st === "playing" || st === "paused"),
+      st &&
+      [
+        "ready",
+        "playing",
+        "paused",
+        "video_ended",
+        "voting_open",
+        "voting_closed",
+        "winner_revealed",
+      ].includes(st),
   );
 
   const hideMainForPurePlayback = Boolean(
@@ -610,8 +619,8 @@ export function ScreenDisplay() {
 
   const ev = screen.event;
 
-  const videoIdleBehindSlate = Boolean(
-    mountVideoStage && ev && resolvedSrc && screen.currentNode && st === "ready",
+  const videoBehindSlate = Boolean(
+    mountVideoStage && ev && resolvedSrc && screen.currentNode && st !== "playing" && st !== "paused",
   );
 
   return (
@@ -624,24 +633,18 @@ export function ScreenDisplay() {
       {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
 
       {mountVideoStage && ev && resolvedSrc && screen.currentNode ? (
-        <div
-          className={cn(
-            "min-h-0 w-full",
-            videoIdleBehindSlate
-              ? "pointer-events-none absolute inset-0 z-10 flex flex-col"
-              : "relative z-0 flex min-h-0 flex-1 flex-col",
-          )}
-        >
+        <div className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">
           <ScreenHostedVideo
             eventId={ev.id}
             mediaInstanceId={screen.currentNode.id}
             src={resolvedSrc}
+            prefetchSrc={screen.nextReelSrc}
             operatorVideoRef={screen.currentNode.video_url ?? ""}
             roomStatus={roomStatus}
             playbackCommand={ev.playback_command}
             playbackCommandId={ev.playback_command_id}
             startPositionSeconds={ev.playback_position_seconds ?? 0}
-            visuallyObscured={st === "ready"}
+            visuallyObscured={videoBehindSlate}
             onEnded={onVideoEnded}
             className="min-h-0 flex-1"
           />

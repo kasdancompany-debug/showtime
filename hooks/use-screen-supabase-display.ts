@@ -14,7 +14,7 @@ import {
   type StoryNodeRow,
 } from "@/lib/supabase/event-room";
 import { readStoredOperatorCode } from "@/lib/showtime/operator-session";
-import { displayStoryVideoFilename } from "@/lib/showtime/video-url";
+import { displayStoryVideoFilename, resolveStoryVideoUrl } from "@/lib/showtime/video-url";
 
 function readInitialEventCode(storeCode: string): string {
   const stored = readStoredOperatorCode();
@@ -213,12 +213,16 @@ export function useScreenSupabaseDisplay() {
   }, [event, nowMs]);
 
   const [nextCueFilename, setNextCueFilename] = useState<string | null>(null);
+  const [nextReelSrc, setNextReelSrc] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     async function run() {
       const ev = event;
       if (!supabase || !ev || ev.status !== "winner_revealed" || !ev.winner || !currentNode) {
-        if (!cancelled) setNextCueFilename(null);
+        if (!cancelled) {
+          setNextCueFilename(null);
+          setNextReelSrc(null);
+        }
         return;
       }
       const key =
@@ -226,16 +230,25 @@ export function useScreenSupabaseDisplay() {
           ? (currentNode.option_a_next_node_key ?? "").trim()
           : (currentNode.option_b_next_node_key ?? "").trim();
       if (!key) {
-        if (!cancelled) setNextCueFilename(null);
+        if (!cancelled) {
+          setNextCueFilename(null);
+          setNextReelSrc(null);
+        }
         return;
       }
       try {
         const next = await getStoryNodeByEventAndKey(supabase, ev.id, key);
         if (cancelled) return;
         const fn = displayStoryVideoFilename(next?.video_url);
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const url = next ? resolveStoryVideoUrl(next.video_url, origin) : null;
         setNextCueFilename(fn || null);
+        setNextReelSrc(url || null);
       } catch {
-        if (!cancelled) setNextCueFilename(null);
+        if (!cancelled) {
+          setNextCueFilename(null);
+          setNextReelSrc(null);
+        }
       }
     }
     void run();
@@ -268,6 +281,7 @@ export function useScreenSupabaseDisplay() {
     countdownSec,
     winnerLabel,
     nextCueFilename,
+    nextReelSrc,
     reload: bootstrap,
   };
 }

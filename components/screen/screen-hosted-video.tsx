@@ -23,9 +23,11 @@ type ScreenVideoFaultKind = "none" | "load_failed" | "autoplay_blocked" | "netwo
 
 type Props = {
   eventId: string;
-  /** Supabase `story_nodes.id` — changing this clears the element so the previous reel never lingers. */
+  /** Supabase `story_nodes.id` — new beat swaps `src` on the same element (no remount flash). */
   mediaInstanceId: string;
   src: string;
+  /** Warm the next reel during winner reveal so branch advance starts without a stall. */
+  prefetchSrc?: string | null;
   /** Operator-entered URL/path from the story beat (shown on load errors when useful). */
   operatorVideoRef?: string;
   /** Room status for this surface — `load` runs in `ready` too (cue without autoplay). */
@@ -102,6 +104,30 @@ function isBenignPlayInterrupt(e: unknown): boolean {
   return false;
 }
 
+const REEL_REVEAL_MS = 280;
+const CANPLAY_BEFORE_PLAY_MS = 20_000;
+
+function waitUntilCanPlay(el: HTMLVideoElement, timeoutMs = CANPLAY_BEFORE_PLAY_MS): Promise<void> {
+  if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for video to buffer"));
+    }, timeoutMs);
+    const cleanup = () => {
+      el.removeEventListener("canplay", onReady);
+      el.removeEventListener("loadeddata", onReady);
+      window.clearTimeout(timer);
+    };
+    el.addEventListener("canplay", onReady, { once: true });
+    el.addEventListener("loadeddata", onReady, { once: true });
+  });
+}
+
 type PlayAttempt = "unmuted" | "muted" | "blocked";
 
 /** Prefer sound after fullscreen was used once; otherwise start muted so the reel still rolls (no on-screen prompt). */
@@ -146,6 +172,7 @@ export function ScreenHostedVideo({
   eventId,
   mediaInstanceId,
   src,
+  prefetchSrc = null,
   operatorVideoRef = "",
   roomStatus,
   playbackCommand,
@@ -160,12 +187,15 @@ export function ScreenHostedVideo({
   const [objectFit, setObjectFit] = useState<"contain" | "cover">("contain");
   const [faultKind, setFaultKind] = useState<ScreenVideoFaultKind>("none");
   const [faultCopy, setFaultCopy] = useState<{ headline: string; hint: string } | null>(null);
+  const [reelRevealed, setReelRevealed] = useState(false);
   const lastAppliedCommandId = useRef<string | null>(null);
   const loadTimerRef = useRef<number | undefined>(undefined);
 
-  /** New `<video>` / src = new reel; must re-apply the current command (play was often applied to the old element). */
+  /** New beat / src: re-apply playback command and hide until the new reel is actually playing. */
   useEffect(() => {
     lastAppliedCommandId.current = null;
+    setReelRevealed(false);
+    ref.current?.pause();
   }, [mediaInstanceId, src]);
 
   useEffect(() => {
@@ -247,6 +277,20 @@ export function ScreenHostedVideo({
     return () => disarmLoadTimeout();
   }, [src, mediaInstanceId, armLoadTimeout, disarmLoadTimeout]);
 
+  /** Buffer behind title slates so lifting to `playing` does not flash black. */
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !visuallyObscured) return;
+    const markReady = () => setReelRevealed(true);
+    el.addEventListener("canplay", markReady, { once: true });
+    el.addEventListener("loadeddata", markReady, { once: true });
+    if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) markReady();
+    return () => {
+      el.removeEventListener("canplay", markReady);
+      el.removeEventListener("loadeddata", markReady);
+    };
+  }, [visuallyObscured, src, mediaInstanceId]);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -284,6 +328,13 @@ export function ScreenHostedVideo({
         case "play":
         case "restart": {
           if (roomStatus !== "playing") return false;
+          if (!reelRevealed) {
+            try {
+              await waitUntilCanPlay(el, CANPLAY_BEFORE_PLAY_MS);
+            } catch {
+              /* still attempt play — may be a slow edge network */
+            }
+          }
           if (playbackCommand === "restart") el.currentTime = 0;
           else if (startPositionSeconds > 0) el.currentTime = startPositionSeconds;
 
@@ -293,6 +344,7 @@ export function ScreenHostedVideo({
           if (result === "unmuted") {
             applyProjectorElementAudio(el, true);
             clearFault();
+            setReelRevealed(true);
             return true;
           }
           if (result === "muted") {
@@ -301,6 +353,7 @@ export function ScreenHostedVideo({
               applyProjectorElementAudio(el, true);
             }
             clearFault();
+            setReelRevealed(true);
             return true;
           }
           setFaultKind("autoplay_blocked");
@@ -336,7 +389,17 @@ export function ScreenHostedVideo({
     return () => {
       cancelled = true;
     };
-  }, [playbackCommand, playbackCommandId, startPositionSeconds, roomStatus, mediaInstanceId, src, reportFault, clearFault]);
+  }, [
+    playbackCommand,
+    playbackCommandId,
+    startPositionSeconds,
+    roomStatus,
+    mediaInstanceId,
+    src,
+    reelRevealed,
+    reportFault,
+    clearFault,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -359,24 +422,34 @@ export function ScreenHostedVideo({
 
   const showPlaybackChrome = roomStatus === "playing" || roomStatus === "paused";
   const showFaultOverlay = faultKind !== "none" && faultCopy;
+  const showReelPicture = !visuallyObscured && reelRevealed;
 
   return (
     <div className={cn("relative isolate min-h-0 w-full flex-1 bg-black", className, showFaultOverlay && "z-50")}>
-      {/* Remount only per beat; keying on `src` remounts mid-play() when the URL settles and triggers a spurious “media removed” error. */}
+      {prefetchSrc && prefetchSrc !== src ? (
+        <video
+          aria-hidden
+          className="pointer-events-none absolute size-0 overflow-hidden opacity-0"
+          src={prefetchSrc}
+          playsInline
+          muted
+          preload="auto"
+        />
+      ) : null}
       <video
         ref={ref}
         data-projector-video
-        key={mediaInstanceId}
         className={cn(
-          "absolute inset-0 h-full w-full bg-black transition-opacity duration-200",
+          "absolute inset-0 h-full w-full bg-black transition-opacity ease-out",
           objectFit === "cover" ? "object-cover" : "object-contain",
-          visuallyObscured ? "opacity-0" : "opacity-100",
+          showReelPicture ? "opacity-100" : "opacity-0",
         )}
+        style={{ transitionDuration: `${REEL_REVEAL_MS}ms` }}
         src={src}
         playsInline
         autoPlay={false}
         controls={false}
-        preload="metadata"
+        preload="auto"
         onEnded={() => {
           void onEnded();
         }}
@@ -418,7 +491,7 @@ export function ScreenHostedVideo({
         </div>
       ) : null}
 
-      {showPlaybackChrome && !showFaultOverlay && !visuallyObscured ? (
+      {showPlaybackChrome && !showFaultOverlay && showReelPicture ? (
         <div
           className="pointer-events-none absolute inset-0 z-40 flex flex-col justify-between p-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
           aria-hidden={false}

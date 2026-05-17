@@ -456,15 +456,6 @@ export function useOperatorSupabaseRoom() {
     try {
       const anon = await tryEnsureAnonymousSession(supabase);
       if (!anon.ok) throw new Error(anon.message);
-      const willStartPlayback =
-        event &&
-        (event.status === "ready" || event.status === "paused" || event.status === "winner_revealed");
-      if (willStartPlayback) {
-        openOrFocusProjector(true);
-        void broadcastEventSync(supabase, event.id, { type: "projector_play_gesture", sentAt: Date.now() });
-      } else {
-        openOrFocusProjector(false);
-      }
       await primary.run();
       await loadEvent();
     } catch (e) {
@@ -472,7 +463,7 @@ export function useOperatorSupabaseRoom() {
     } finally {
       setBusy(false);
     }
-  }, [supabase, primary, loadEvent, event]);
+  }, [supabase, primary, loadEvent]);
 
   const resetEventToStart = useCallback(async () => {
     if (!supabase || !event) return;

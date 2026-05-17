@@ -1,9 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
-
-import { StudioBadge } from "@/components/kasdan";
 import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import type { PlaybackCmd } from "@/lib/supabase/database.types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -408,19 +405,6 @@ export function ScreenHostedVideo({
     };
   }, [disarmLoadTimeout]);
 
-  const toggleFit = useCallback(() => {
-    setObjectFit((prev) => {
-      const next = prev === "contain" ? "cover" : "contain";
-      try {
-        window.localStorage.setItem(FIT_LS_KEY, next);
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
-
-  const showPlaybackChrome = roomStatus === "playing" || roomStatus === "paused";
   const showFaultOverlay = faultKind !== "none" && faultCopy;
   const showReelPicture = !visuallyObscured && reelRevealed;
 
@@ -491,30 +475,6 @@ export function ScreenHostedVideo({
         </div>
       ) : null}
 
-      {showPlaybackChrome && !showFaultOverlay && showReelPicture ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-40 flex flex-col justify-between p-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))]"
-          aria-hidden={false}
-        >
-          <div className="flex w-full items-start justify-between gap-2">
-            <StudioBadge className="pointer-events-auto scale-[0.72] origin-top-left shadow-sm shadow-black/40" />
-            <div className="flex shrink-0 items-start gap-2">
-              <button
-                type="button"
-                title={objectFit === "contain" ? "Reel fills the frame (cover)" : "Letterbox reel (contain)"}
-                onClick={toggleFit}
-                className="pointer-events-auto rounded-md border border-white/20 bg-black/55 p-2 text-white/90 backdrop-blur-sm hover:bg-black/70"
-              >
-                {objectFit === "contain" ? (
-                  <Maximize2 className="size-4" aria-hidden />
-                ) : (
-                  <Minimize2 className="size-4" aria-hidden />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

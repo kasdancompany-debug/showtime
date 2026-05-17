@@ -65,6 +65,21 @@ function ProjectionCard({
   );
 }
 
+function PreShowPresents() {
+  return <p className={cn(eyebrow, "text-[var(--kc-champagne)]")}>Kasdan Co. presents</p>;
+}
+
+function PreShowJoinCode({ code }: { code: string }) {
+  return (
+    <div className="mt-10 flex flex-wrap items-baseline justify-center gap-x-4 gap-y-2">
+      <span className={cn(eyebrow, "text-[var(--kc-champagne)]")}>Join code</span>
+      <span className="font-mono text-[clamp(1.1rem,3vw,1.85rem)] font-medium tracking-[0.28em] text-[var(--kc-gold-bright)]">
+        {code}
+      </span>
+    </div>
+  );
+}
+
 function CinematicChoiceCard({
   letter,
   label,
@@ -190,6 +205,8 @@ export function ScreenDisplay() {
   const hideMainForPurePlayback = Boolean(
     mountVideoStage && resolvedSrc && (st === "playing" || st === "paused"),
   );
+
+  const isPreShowLobby = st === "setup" || st === "ready";
 
   useProjectorFullscreenLock([
     st,
@@ -406,18 +423,19 @@ export function ScreenDisplay() {
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>
     );
-  } else if (st === "setup" || st === "ready") {
+  } else if (isPreShowLobby) {
     const idlePosterRaw = screen.event!.screen_idle_poster_url?.trim() ?? "";
     const idlePosterResolved = idlePosterRaw ? resolveStoryVideoUrl(idlePosterRaw, origin) : null;
     const showPosterHero = Boolean(idlePosterResolved);
-    body = showPosterHero ? (
+    body = (
       <ProjectionCard>
-        <div className="flex w-full flex-col items-center justify-center gap-6 md:gap-8">
+        <ArtDecoDivider className="mb-8" />
+        {showPosterHero ? (
           <ScreenTitleCardFrame
             paddingDensity="compact"
             padded={false}
             showInnerRule={false}
-            className="w-full max-w-[min(92vw,44rem)] px-1 py-0 sm:px-3"
+            className="mb-8 w-full max-w-[min(92vw,44rem)] px-1 py-0 sm:px-3"
           >
             <div className="relative aspect-video w-full overflow-hidden rounded-sm bg-black/40 shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-line)_50%,transparent)]">
               {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL */}
@@ -429,49 +447,12 @@ export function ScreenDisplay() {
               />
             </div>
           </ScreenTitleCardFrame>
-          <div className="flex w-full max-w-xl flex-col items-center gap-1 text-center">
-            <Link
-              href="/"
-              className={cn(
-                eyebrow,
-                "inline-block hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_65%,transparent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--kc-piano)]",
-              )}
-              aria-label="Showtime home"
-            >
-              Kasdan Co. presents
-            </Link>
-            <p className={cn(serifDisplay, "mt-3 text-[var(--kc-cream)]")}>{screen.event!.title}</p>
-            <p className="mt-4 font-mono text-[clamp(0.85rem,2.2vw,1.35rem)] tracking-[0.32em] text-[var(--kc-gold-bright)]">{code}</p>
-          </div>
-          <p className={cn(bodyLarge, "max-w-lg text-pretty text-center text-sm opacity-75")}>
-            The operator starts the first reel when the room is ready — this image stays up until playback begins.
-          </p>
-        </div>
-      </ProjectionCard>
-    ) : (
-      <ProjectionCard>
-        <ArtDecoDivider className="mb-8" />
-        <Link
-          href="/"
-          className={cn(
-            eyebrow,
-            "inline-block hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_65%,transparent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[var(--kc-piano)]",
-          )}
-          aria-label="Showtime home"
-        >
-          Kasdan Co. presents
-        </Link>
-        <p className={cn(serifDisplay, "mt-8 text-[var(--kc-cream)]")}>{screen.event!.title}</p>
-        <p className={cn(bodyLarge, "mt-5 max-w-2xl")}>
-          {st === "ready" ? "Beat loaded — reel is cued for projection." : "Awaiting operator cue — beat is staged."}
+        ) : null}
+        <PreShowPresents />
+        <p className={cn(serifDisplay, showPosterHero ? "mt-6" : "mt-8", "text-[var(--kc-cream)]")}>
+          {screen.event!.title}
         </p>
-        <p className={cn(bodyLarge, "mt-4 max-w-2xl text-sm opacity-80")}>
-          Nothing plays here until the <strong className="text-[var(--kc-cream)]">operator</strong> starts it — open the{" "}
-          <strong className="text-[var(--kc-cream)]">Operator</strong> tab and press{" "}
-          <strong className="text-[var(--kc-cream)]">Play on screen</strong>. This view does not scroll (by design). Use
-          Fullscreen or <strong className="text-[var(--kc-cream)]">F11</strong> to fill the monitor.
-        </p>
-        <p className="mt-8 font-mono text-[clamp(1rem,2.8vw,1.75rem)] tracking-[0.32em] text-[var(--kc-gold-bright)]">{code}</p>
+        <PreShowJoinCode code={code} />
         <ArtDecoDivider className="mt-10" />
       </ProjectionCard>
     );
@@ -630,7 +611,9 @@ export function ScreenDisplay() {
         "select-none [-webkit-user-select:none] [touch-action:none]",
       )}
     >
-      {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
+      {!blockingLoad && !disconnected && !hideMainForPurePlayback && !isPreShowLobby ? (
+        <ScreenFullscreenButton />
+      ) : null}
 
       {mountVideoStage && ev && resolvedSrc && screen.currentNode ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">

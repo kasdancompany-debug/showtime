@@ -14,11 +14,11 @@ const base =
 
 const variants: Record<NonNullable<GoldButtonProps["variant"]>, string> = {
   primary:
-    "border border-[oklch(0.72_0.05_78/0.28)] bg-[oklch(0.22_0.025_48)] text-[var(--kc-cream)] shadow-[0_1px_0_oklch(1_0_0/0.06)_inset,0_8px_28px_oklch(0_0_0/0.35)] hover:border-[oklch(0.78_0.06_78/0.4)] hover:bg-[oklch(0.26_0.028_48)]",
+    "border border-[color-mix(in_oklch,var(--kc-gold)_30%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel-elevated)_88%,var(--kc-piano))] text-[var(--kc-cream)] shadow-[inset_0_1px_0_oklch(1_0_0/0.06)] hover:border-[color-mix(in_oklch,var(--kc-gold-bright)_38%,transparent)] hover:bg-[color-mix(in_oklch,var(--kc-panel-elevated)_94%,var(--kc-piano))]",
   quiet:
-    "border border-transparent bg-[oklch(0.2_0.02_260/0.55)] text-[var(--kc-cream)] hover:bg-[oklch(0.24_0.022_260/0.65)]",
+    "border border-transparent bg-[color-mix(in_oklch,var(--kc-piano)_55%,var(--kc-panel))] text-[var(--kc-cream)] hover:bg-[color-mix(in_oklch,var(--kc-panel)_70%,transparent)]",
   outline:
-    "border border-[oklch(0.72_0.04_78/0.22)] bg-transparent text-[var(--kc-cream-dim)] hover:border-[oklch(0.78_0.05_78/0.35)] hover:bg-[oklch(1_0_0/0.04)] hover:text-[var(--kc-cream)]",
+    "border border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] bg-transparent text-[var(--kc-champagne)] hover:border-[color-mix(in_oklch,var(--kc-gold)_35%,transparent)] hover:bg-[color-mix(in_oklch,var(--kc-gold)_6%,transparent)] hover:text-[var(--kc-cream)]",
 };
 
 /** Primary actions — matte surfaces, restrained metal accent */

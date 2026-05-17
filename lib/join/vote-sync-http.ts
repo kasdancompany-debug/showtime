@@ -6,11 +6,10 @@ import { insertVote } from "@/lib/join/supabase-room";
 import type { Database } from "@/lib/supabase/database.types";
 import type { VoteChoice } from "@/types";
 
-/** Plain HTTP vote POST when the realtime/WebSocket path is flaky (same RLS as browser insert). */
 export async function postJoinVoteHttpFallback(params: {
   eventId: string;
   storyNodeId: string;
-  audienceMemberId: string;
+  sessionId: string;
   choice: VoteChoice;
   accessToken: string;
 }): Promise<"ok" | "duplicate" | "failed"> {
@@ -24,7 +23,7 @@ export async function postJoinVoteHttpFallback(params: {
       body: JSON.stringify({
         eventId: params.eventId,
         storyNodeId: params.storyNodeId,
-        audienceMemberId: params.audienceMemberId,
+        sessionId: params.sessionId,
         choice: params.choice,
       }),
     });
@@ -36,13 +35,12 @@ export async function postJoinVoteHttpFallback(params: {
   }
 }
 
-/** Two direct inserts then one simplified HTTP attempt; duplicate row counts as success. */
 export async function attemptHostedVoteDelivery(
   supabase: SupabaseClient<Database>,
   params: {
     eventId: string;
     storyNodeId: string;
-    audienceMemberId: string;
+    sessionId: string;
     choice: VoteChoice;
   },
 ): Promise<"ok" | "duplicate" | "failed"> {

@@ -7,14 +7,20 @@ import { cn } from "@/lib/utils";
 type Props = {
   className?: string;
   showSeal?: boolean;
-  /** When set, the badge is a link (e.g. `"/"` for home). */
-  href?: string;
+  /**
+   * Badge target. Defaults to `"/"` (Showtime home). Pass `null` for a non-interactive badge
+   * (e.g. kiosk surfaces where navigation would be disruptive).
+   */
+  href?: string | null;
 };
 
 export function StudioBadge({ className, showSeal = false, href }: Props) {
+  const resolvedHref = href === undefined ? "/" : href;
+  const isLink = resolvedHref != null && resolvedHref !== "";
+
   const classes = cn(
     "inline-flex items-center gap-2 rounded-md border border-[oklch(0.72_0.04_78/0.18)] bg-[oklch(0.12_0.015_260/0.65)] px-3 py-1.5 backdrop-blur-sm",
-    href &&
+    isLink &&
       "no-underline transition-[opacity,border-color,box-shadow] hover:border-[oklch(0.72_0.04_78/0.28)] hover:opacity-[0.92] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(0.88_0.05_85/0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--kc-bg-deep,oklch(0.14_0.03_55))]",
     className,
   );
@@ -32,9 +38,9 @@ export function StudioBadge({ className, showSeal = false, href }: Props) {
     </>
   );
 
-  if (href) {
+  if (isLink) {
     return (
-      <Link href={href} className={classes} aria-label="Showtime home">
+      <Link href={resolvedHref} className={classes} aria-label="Showtime home">
         {inner}
       </Link>
     );

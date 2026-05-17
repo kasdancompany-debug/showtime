@@ -1,13 +1,10 @@
 import type { ReactNode } from "react";
 
 /**
- * Lock the operator desk to the dynamic viewport so only in-page drawers scroll,
- * not the document body (avoids nested scroll traps on laptop screens).
+ * Fill the main app shell (already inset by safe areas). Do not use h-[100dvh] here —
+ * that stacks on top of AppShell padding and triggers a document scrollbar alongside
+ * the desk’s own overflow-y (double scrollbars).
  */
 export default function HostLayout({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex h-[100dvh] max-h-[100dvh] min-h-0 w-full flex-1 flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh] supports-[height:100dvh]:max-h-[100dvh]">
-      {children}
-    </div>
-  );
+  return <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">{children}</div>;
 }

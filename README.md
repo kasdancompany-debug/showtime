@@ -2,7 +2,7 @@
 
 Interactive branching screenings: operators run the live room from **`/host`**, the wall runs **`/screen`**, and guests join from QR links under **`/join`**.
 
-Stack: [Next.js](https://nextjs.org), Supabase Realtime (optional but required for multi-device audiences), client-side story graph + playback sync.
+Stack: [Next.js](https://nextjs.org), Supabase (Postgres + Realtime for multi-device audiences), and a client-side story engine for rehearsal / hybrid flows.
 
 ## Getting started
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Use **`/admin/story`** to build graphs, **`/host`** for show night, **`/screen`** on the projector machine.
+Open [http://localhost:3000](http://localhost:3000). Use **`/admin/story`** to edit beats and branches in the database, **`/host`** for show night, **`/screen`** on the projector machine.
 
 Useful scripts:
 
@@ -29,15 +29,14 @@ Useful scripts:
 2. Open **`/host`** on the operator machine; confirm the status bar shows **Live Supabase** (not local-preview-only) if you expect phones on the network.
 3. Open **`/screen`** on the projector browser (same site origin as `/host`), full-screen if possible.
 4. In **Room setup & diagnostics**, verify **Phone-safe** is **Yes** on the QR test card. If not, fix `NEXT_PUBLIC_JOIN_ORIGIN` and redeploy or restart, then refresh `/host`.
-5. Run **Story builder** validation mentally: every beat has media, forks have labels and next beats, no broken branch pointers.
+5. In **`/admin/story`**, validate the branch map: opening beat, non-ending beats have questions and both options, next keys resolve.
 6. Scan the QR with one real phone; complete a test vote before doors.
 
 **During the show**
 
-- Drive playback from the left transport on `/host`; large actions on the right control voting only.
-- Keep `/screen` focused; use **Resync projector** if picture drifts after a tab sleep or refresh.
+- Follow operator cues on `/host` (clip filenames match your media bundle).
+- Keep `/screen` focused; use **Resync projector** if the surface drifts after a tab sleep or refresh.
 - **Close vote** always confirms — intentional for live audiences.
-- **Start event** warns if the graph fails production validation (missing media, broken branches). Fix in Story builder when possible; rehearsal-only overrides require explicit confirmation.
 
 **After the show**
 
@@ -100,9 +99,9 @@ Set values in the hosting dashboard, redeploy so client bundles pick up `NEXT_PU
 | ------- | ----------- |
 | Phones cannot load the join page | Fix `NEXT_PUBLIC_JOIN_ORIGIN`, redeploy, hard-refresh `/host`, re-scan QR; verify HTTPS and DNS. |
 | Realtime disconnected banner | Use **Retry realtime** in diagnostics; check Supabase status; reload `/host` and `/screen`. |
-| Projector black / “paused — media fault” | Fix URL or local file for the current beat in Story builder on the **projector** machine; use **Resync projector** from `/host`. |
+| Projector black / “paused — media fault” | Confirm clip filenames and media on the projector machine; use **Resync projector** from `/host`. |
 | Votes stuck / UI wedged | Confirm operator closed/reveal/advance sequence; avoid duplicate `/screen` tabs competing; refresh projector tab once if needed. |
-| Wrong beat after an edit | Do not load a new saved film mid-show; finish or reset the night first. |
+| Wrong beat after an edit | Finish or reset the night, reload `/host`, then reload `/screen`. |
 
 If the room is corrupted beyond quick fixes, use **Reset** (diagnostics) to return to draft at the opening beat, then reload `/screen`.
 
@@ -111,10 +110,8 @@ If the room is corrupted beyond quick fixes, use **Reset** (diagnostics) to retu
 ## Known Limits
 
 - **End show** ends the current run; there is no “un-end” for that session.
-- **Graph validation** on start treats missing video URLs / local keys as errors for production — rehearsal can override via confirmation.
 - **Local preview** does not replace Supabase for real audiences; it is tabs-only sync.
 - **QR codes** encode whatever join URL `/host` computes from env + event code — wrong `JOIN_ORIGIN` cannot be fixed by guests refreshing alone.
-- **Projection** depends on the browser codecs and CORS rules for direct file URLs; YouTube embeds may fail on restrictive networks or offline rigs.
 - Anonymous quick join and voting fairness assumptions are documented in-app; tighten flags for paid shows if your policy requires named attendees.
 
 ---

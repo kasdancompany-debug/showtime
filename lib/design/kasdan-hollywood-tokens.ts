@@ -1,4 +1,4 @@
-/** Kasdan Co. Hollywood — design tokens (mirror CSS vars in globals.css `.kasdan-hollywood`) */
+/** Kasdan Co. cinema skin — mirrors CSS vars in `globals.css` (`.kasdan-hollywood`, `html.showtime.dark`) */
 
 export const kcMotion = {
   curtainIn: 0.72,
@@ -21,13 +21,16 @@ export const kcCopy = {
   counting: "The studio is counting the ballots…",
 } as const;
 
+/** Semantic keys for `var(--kc-*)` in CSS */
 export type KasdanColorKey =
-  | "espresso"
-  | "midnight"
-  | "cream"
-  | "parchment"
-  | "burgundy"
-  | "velvet"
+  | "piano"
+  | "panel"
+  | "panelElevated"
   | "gold"
-  | "champagne"
-  | "amberGlow";
+  | "goldBright"
+  | "goldLine"
+  | "velvet"
+  | "velvetDeep"
+  | "danger"
+  | "ivory"
+  | "champagne";

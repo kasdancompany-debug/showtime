@@ -28,7 +28,7 @@ export function CinemaTitle({ as: Tag = "h2", children, className, eyebrow, size
       ) : null}
       <Tag
         className={cn(
-          "kc-display font-normal tracking-[0.02em] text-[var(--kc-cream)] drop-shadow-[0_2px_24px_rgba(0,0,0,0.65)]",
+          "kc-display font-normal tracking-[0.02em] text-[var(--kc-cream)]",
           sizes[size],
         )}
       >

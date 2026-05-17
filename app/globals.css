@@ -133,160 +133,208 @@
   }
 }
 
-/* Showtime — warm spotlight on cool void (default app skin) */
+/* Showtime document shell — piano black (matches in-app cinema theme) */
 html.showtime.dark {
-  --bn-fg: oklch(0.96 0.02 95);
-  --bn-dim: oklch(0.72 0.03 95);
-  --bn-gold: oklch(0.78 0.11 82);
-  --bn-teal: oklch(0.78 0.1 185);
-  --bn-coral: oklch(0.7 0.17 25);
-  --bn-void: oklch(0.1 0.02 268);
-  --bn-panel: oklch(0.15 0.02 268);
-  --bn-line: oklch(0.92 0.02 95 / 0.12);
+  --bn-fg: oklch(0.97 0.012 92);
+  --bn-dim: oklch(0.72 0.028 88);
+  --bn-gold: oklch(0.62 0.038 75);
+  --bn-teal: oklch(0.58 0.08 185);
+  --bn-coral: oklch(0.42 0.11 22);
+  --bn-void: oklch(0.078 0.008 285);
+  --bn-panel: oklch(0.125 0.018 55);
+  --bn-line: oklch(0.62 0.04 78 / 0.22);
   --background: var(--bn-void);
   --foreground: var(--bn-fg);
-  --card: var(--bn-panel);
+  --card: oklch(0.125 0.018 55);
   --card-foreground: var(--bn-fg);
-  --popover: oklch(0.14 0.02 268);
+  --popover: oklch(0.14 0.02 52);
   --popover-foreground: var(--bn-fg);
-  --primary: oklch(0.82 0.12 82);
-  --primary-foreground: oklch(0.14 0.02 268);
-  --secondary: oklch(0.2 0.02 268);
+  --primary: oklch(0.62 0.038 75);
+  --primary-foreground: oklch(0.078 0.01 285);
+  --secondary: oklch(0.16 0.02 52);
   --secondary-foreground: var(--bn-fg);
-  --muted: oklch(0.22 0.02 268);
+  --muted: oklch(0.18 0.022 52);
   --muted-foreground: var(--bn-dim);
-  --accent: oklch(0.22 0.04 268);
+  --accent: oklch(0.2 0.024 52);
   --accent-foreground: var(--bn-fg);
+  --destructive: oklch(0.5 0.14 24);
   --border: var(--bn-line);
-  --input: oklch(1 0 0 / 0.08);
-  --ring: oklch(0.78 0.11 82);
+  --input: oklch(1 0 0 / 0.07);
+  --ring: oklch(0.72 0.045 78 / 0.45);
+  --kc-shadow-inset-gold: inset 0 1px 0 oklch(0.78 0.04 78 / 0.1);
+  --kc-shadow-card: 0 16px 44px oklch(0 0 0 / 0.4);
 }
 
-/* ——— Kasdan Co. Hollywood (classic studio system — restrained, premium) ——— */
+/* ——— Cinema lobby · restrained piano / gold / velvet (modern software) ——— */
 
 .kasdan-hollywood {
-  --kc-bg-deep: oklch(0.14 0.03 55);
-  --kc-midnight: oklch(0.1 0.02 280);
-  --kc-espresso: oklch(0.18 0.04 48);
-  --kc-cream: oklch(0.96 0.02 95);
-  --kc-cream-dim: oklch(0.78 0.03 85);
-  --kc-parchment: oklch(0.93 0.03 95);
-  --kc-burgundy: oklch(0.28 0.08 25);
-  --kc-burgundy-deep: oklch(0.18 0.06 22);
-  --kc-velvet: oklch(0.32 0.12 18);
-  --kc-gold: oklch(0.74 0.07 78);
-  --kc-gold-deep: oklch(0.56 0.06 72);
-  --kc-gold-muted: oklch(0.58 0.045 78);
-  --kc-gold-faint: oklch(0.68 0.04 78 / 0.28);
-  --kc-champagne: oklch(0.88 0.06 85);
-  --kc-amber-glow: oklch(0.82 0.12 78);
-  --kc-brass-mid: oklch(0.72 0.06 72);
-  --kc-brass-deep: oklch(0.52 0.05 65);
-  --kc-brass-dark: oklch(0.38 0.04 58);
-  --kc-panel: oklch(0.17 0.03 48);
-  --kc-coral-theatre: oklch(0.55 0.14 28);
-  --kc-teal-theatre: oklch(0.48 0.09 185);
+  /* Surfaces */
+  --kc-piano: oklch(0.076 0.007 280);
+  --kc-panel: oklch(0.125 0.018 54);
+  --kc-panel-elevated: oklch(0.158 0.022 52);
+  /* Metal */
+  --kc-gold: oklch(0.58 0.034 76);
+  --kc-gold-bright: oklch(0.74 0.052 78);
+  --kc-gold-line: oklch(0.62 0.032 78 / 0.32);
+  /* Moulin warmth — accents only */
+  --kc-velvet: oklch(0.4 0.112 22);
+  --kc-velvet-deep: oklch(0.28 0.09 20);
+  --kc-danger: oklch(0.5 0.125 24);
+  /* Type */
+  --kc-ivory: oklch(0.97 0.012 92);
+  --kc-champagne: oklch(0.72 0.028 88);
 
-  --kc-shadow-brass: 0 4px 0 oklch(0.28 0.04 55), 0 8px 28px oklch(0 0 0 / 0.45);
-  --kc-shadow-marquee:
-    0 0 0 1px oklch(0.72 0.04 78 / 0.1) inset, 0 16px 56px oklch(0 0 0 / 0.42),
-    0 0 60px oklch(0.72 0.06 78 / 0.05);
-  --kc-shadow-card: 0 24px 80px oklch(0 0 0 / 0.5);
-  --kc-shadow-inset-gold: inset 0 1px 0 oklch(0.88 0.05 85 / 0.22);
+  /* Legacy names (existing TSX / components) */
+  --kc-bg-deep: var(--kc-piano);
+  --kc-midnight: oklch(0.062 0.006 280);
+  --kc-espresso: var(--kc-panel);
+  --kc-cream: var(--kc-ivory);
+  --kc-cream-dim: var(--kc-champagne);
+  --kc-parchment: oklch(0.92 0.018 92);
+  --kc-burgundy: var(--kc-velvet-deep);
+  --kc-burgundy-deep: oklch(0.22 0.07 20);
+  --kc-gold-deep: oklch(0.48 0.032 74);
+  --kc-gold-muted: var(--kc-gold);
+  --kc-gold-faint: color-mix(in oklch, var(--kc-gold-line) 50%, transparent);
+  --kc-amber-glow: oklch(0.76 0.055 78);
+  --kc-brass-mid: oklch(0.62 0.04 76);
+  --kc-brass-deep: oklch(0.48 0.03 72);
+  --kc-brass-dark: oklch(0.36 0.028 70);
+  --kc-coral-theatre: oklch(0.48 0.12 24);
+  --kc-teal-theatre: oklch(0.52 0.08 185);
 
-  --kc-ease-theatre: cubic-bezier(0.22, 1, 0.36, 1);
-  --kc-dur-curtain: 720ms;
-  --kc-dur-reveal: 880ms;
+  --kc-shadow-card: 0 16px 44px oklch(0 0 0 / 0.4);
+  --kc-shadow-inset-gold: inset 0 1px 0 oklch(0.78 0.04 78 / 0.1);
 
-  font-family: var(--font-body-serif), var(--font-ui), ui-serif, Georgia, serif;
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
 
-  --background: var(--kc-bg-deep);
-  --foreground: var(--kc-cream);
-  --card: oklch(0.16 0.025 48 / 0.92);
-  --card-foreground: var(--kc-cream);
-  --popover: oklch(0.14 0.03 48);
-  --popover-foreground: var(--kc-cream);
+  --background: var(--kc-piano);
+  --foreground: var(--kc-ivory);
+  --card: color-mix(in oklch, var(--kc-panel) 94%, transparent);
+  --card-foreground: var(--kc-ivory);
+  --popover: var(--kc-panel-elevated);
+  --popover-foreground: var(--kc-ivory);
   --primary: var(--kc-gold);
-  --primary-foreground: var(--kc-midnight);
-  --secondary: oklch(0.22 0.03 48);
-  --secondary-foreground: var(--kc-cream);
-  --muted: oklch(0.24 0.03 50);
-  --muted-foreground: var(--kc-cream-dim);
-  --accent: oklch(0.26 0.04 48);
-  --accent-foreground: var(--kc-cream);
-  --border: oklch(0.72 0.05 78 / 0.22);
-  --input: oklch(1 0 0 / 0.08);
-  --ring: var(--kc-champagne);
+  --primary-foreground: var(--kc-piano);
+  --secondary: oklch(0.2 0.018 52);
+  --secondary-foreground: var(--kc-ivory);
+  --muted: oklch(0.19 0.018 52);
+  --muted-foreground: var(--kc-champagne);
+  --accent: oklch(0.22 0.022 52);
+  --accent-foreground: var(--kc-ivory);
+  --destructive: var(--kc-danger);
+  --destructive-foreground: var(--kc-ivory);
+  --border: var(--kc-gold-line);
+  --input: oklch(1 0 0 / 0.06);
+  --ring: color-mix(in oklch, var(--kc-gold-bright) 45%, transparent);
 
-  /* Legacy ui vars (--bn-*) mapped for gradual adoption */
-  --bn-fg: var(--kc-cream);
-  --bn-dim: var(--kc-cream-dim);
-  --bn-gold: var(--kc-champagne);
-  --bn-teal: oklch(0.62 0.1 185);
-  --bn-coral: oklch(0.62 0.14 28);
-  --bn-void: var(--kc-bg-deep);
-  --bn-panel: oklch(0.15 0.03 48);
-  --bn-line: oklch(0.72 0.05 78 / 0.18);
+  --bn-fg: var(--kc-ivory);
+  --bn-dim: var(--kc-champagne);
+  --bn-gold: var(--kc-gold-bright);
+  --bn-teal: var(--kc-teal-theatre);
+  --bn-coral: var(--kc-coral-theatre);
+  --bn-void: var(--kc-piano);
+  --bn-panel: var(--kc-panel);
+  --bn-line: var(--kc-gold-line);
 }
 
 .kasdan-hollywood .font-heading {
-  font-family: var(--font-art-deco), var(--font-display), "Poiret One", serif;
-  letter-spacing: 0.02em;
+  font-family: var(--font-display), var(--font-body-serif), Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  letter-spacing: 0.012em;
 }
 
 .kasdan-hollywood .kc-display {
-  font-family: var(--font-art-deco), var(--font-display), "Poiret One", fantasy;
-  letter-spacing: 0.025em;
+  font-family: var(--font-display), var(--font-body-serif), Georgia, serif;
+  letter-spacing: 0.02em;
 }
 
 .kasdan-hollywood .kc-eyebrow {
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
-/* Operational UI: readable sans alongside Deco display type */
+/* Operational zones: sans body, awards-ceremony hierarchy on headings only */
 .kasdan-hollywood .showtime-functional {
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
   font-size: 0.9375rem;
   line-height: 1.55;
-  font-weight: 500;
+  font-weight: 450;
 }
 
-.kasdan-hollywood .kc-art-deco-corners::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: clamp(10px, 2.5vw, 20px);
-  border: 1px solid oklch(0.72 0.04 78 / 0.18);
-  border-radius: 2px;
+/* Shared cards: hairline brass frame, no loud glow */
+.kasdan-hollywood [data-slot="card"] {
+  border-color: color-mix(in oklch, var(--kc-gold) 22%, transparent);
+  background-color: color-mix(in oklch, var(--card) 100%, transparent);
+  box-shadow: var(--kc-shadow-inset-gold), var(--kc-shadow-card);
 }
 
-/* /host operator desk — calm pro-console (sans workflow type; gold/red/teal discipline) */
+.kasdan-hollywood [data-slot="card-footer"] {
+  border-color: color-mix(in oklch, var(--kc-gold) 14%, transparent);
+  background: color-mix(in oklch, var(--kc-piano) 55%, transparent);
+}
+
+/* Form controls */
+.kasdan-hollywood [data-slot="label"] {
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.kasdan-hollywood [data-slot="input"] {
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--kc-panel-elevated) 75%, var(--kc-piano));
+  border-color: color-mix(in oklch, var(--kc-gold) 16%, transparent);
+}
+
+.kasdan-hollywood [data-slot="input"]:focus-visible {
+  border-color: color-mix(in oklch, var(--kc-gold-bright) 40%, transparent);
+}
+
+/* Primary buttons: brushed gold, not neon */
+.kasdan-hollywood [data-slot="button"].border-transparent.bg-primary {
+  border-color: color-mix(in oklch, var(--kc-gold-bright) 35%, transparent) !important;
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.12);
+}
+
+/* Refined destructive / alerts */
+.kasdan-hollywood [data-slot="button"][class*="destructive"] {
+  border-color: color-mix(in oklch, var(--kc-danger) 35%, transparent);
+}
+
+/* /host — same tokens, slightly lifted panels */
 .kasdan-hollywood .host-operator-root {
-  --host-bg: oklch(0.084 0.012 265);
-  --host-surface: oklch(0.124 0.01 265);
-  --host-surface-hover: oklch(0.148 0.012 265);
-  --host-divider: oklch(1 0 0 / 0.07);
-  --host-teal: oklch(0.62 0.11 175);
-  --host-teal-dim: oklch(0.62 0.11 175 / 0.14);
-  --host-gold-act: oklch(0.78 0.095 78);
-  --host-gold-act-text: oklch(0.14 0.025 265);
+  --host-bg: var(--kc-piano);
+  --host-surface: color-mix(in oklch, var(--kc-panel) 94%, black);
+  --host-surface-hover: var(--kc-panel-elevated);
+  --host-divider: color-mix(in oklch, var(--kc-gold-line) 42%, transparent);
+  --host-teal: oklch(0.55 0.09 175);
+  --host-teal-dim: oklch(0.55 0.09 175 / 0.16);
+  --host-gold-act: var(--kc-gold-bright);
+  --host-gold-act-text: var(--kc-piano);
   background: var(--host-bg);
 }
 
-.kasdan-hollywood .host-operator-root .host-operator-panel {
-  border-radius: 12px;
-  background: color-mix(in oklch, var(--host-surface) 94%, transparent);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.04);
+.kasdan-hollywood .host-operator-root .host-operator-panel,
+.kasdan-hollywood .host-operator-root [data-host-card] {
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--host-surface) 96%, transparent);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.035);
+  border: 1px solid color-mix(in oklch, var(--kc-gold) 12%, transparent);
 }
 
-.kasdan-hollywood .host-operator-root .host-operator-panel:focus-within {
+.kasdan-hollywood .host-operator-root .host-operator-panel:focus-within,
+.kasdan-hollywood .host-operator-root [data-host-card]:focus-within {
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.05),
-    0 0 0 1px oklch(1 0 0 / 0.06);
+    inset 0 1px 0 oklch(1 0 0 / 0.045),
+    0 0 0 1px color-mix(in oklch, var(--kc-gold) 18%, transparent);
 }
 
 .kasdan-hollywood .host-operator-root .host-primary-cta:not(:disabled),
@@ -297,7 +345,7 @@ html.showtime.dark {
 
 .kasdan-hollywood .host-operator-root .host-primary-cta:not(:disabled):hover,
 .kasdan-hollywood .host-operator-root a.host-primary-cta:hover {
-  background: oklch(0.84 0.09 82);
+  background: color-mix(in oklch, var(--host-gold-act) 92%, white);
 }
 
 .kasdan-hollywood .host-operator-root .host-primary-cta:focus-visible,
@@ -305,17 +353,19 @@ html.showtime.dark {
   outline: none;
   box-shadow:
     0 0 0 2px var(--host-bg),
-    0 0 0 4px oklch(0.82 0.11 78 / 0.65);
+    0 0 0 4px color-mix(in oklch, var(--kc-gold-bright) 38%, transparent);
 }
 
 .kasdan-hollywood .host-operator-root .host-primary-cta:disabled {
-  opacity: 0.42;
+  opacity: 0.36;
+  cursor: not-allowed;
+  filter: saturate(0.55);
 }
 
 .kasdan-hollywood .host-operator-root .host-transport-btn[data-active="true"] {
-  background: oklch(0.62 0.11 175 / 0.18);
+  background: color-mix(in oklch, var(--host-teal) 22%, transparent);
   color: oklch(0.92 0.04 175);
-  border-color: oklch(0.62 0.11 175 / 0.35);
+  border-color: color-mix(in oklch, var(--host-teal) 38%, transparent);
 }
 
 /* ——— Big-screen / projector (primarily /screen) ——— */
@@ -369,7 +419,7 @@ html.showtime.dark {
   font-weight: 600;
   letter-spacing: 0.38em;
   text-transform: uppercase;
-  color: oklch(0.88 0.06 85 / 0.92);
+  color: color-mix(in oklch, var(--kc-champagne) 92%, transparent);
 }
 
 .kasdan-hollywood .kc-screen-decide-line {
@@ -379,7 +429,7 @@ html.showtime.dark {
   letter-spacing: 0.28em;
   text-transform: uppercase;
   line-height: 1.5;
-  color: oklch(0.88 0.06 85 / 0.88);
+  color: color-mix(in oklch, var(--kc-champagne) 88%, transparent);
 }
 
 .kasdan-hollywood .kc-drape-left-motion {
@@ -414,4 +464,217 @@ html.showtime.dark {
   .kasdan-hollywood .kc-house-spot-motion {
     opacity: 0.85;
   }
+}
+
+/* ——— Showtime premium polish: palace frame, banners, pills, loading ——— */
+
+@keyframes kc-banner-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -20% 0;
+  }
+}
+
+.kc-gold-rule {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--kc-gold-line) 95%, transparent) 42%,
+    color-mix(in oklch, var(--kc-gold-bright) 50%, transparent) 50%,
+    color-mix(in oklch, var(--kc-gold-line) 95%, transparent) 58%,
+    transparent
+  );
+}
+
+.kc-palace-corners {
+  position: relative;
+}
+
+.kc-palace-corners::before,
+.kc-palace-corners::after {
+  content: "";
+  position: absolute;
+  width: 17px;
+  height: 17px;
+  pointer-events: none;
+  z-index: 1;
+  border: 0 solid color-mix(in oklch, var(--kc-gold-bright) 40%, transparent);
+}
+
+.kc-palace-corners::before {
+  top: 9px;
+  left: 9px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+
+.kc-palace-corners::after {
+  bottom: 9px;
+  right: 9px;
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+}
+
+.kc-showtime-banner {
+  padding: 0.7rem 1.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.48;
+  border-bottom: 1px solid color-mix(in oklch, var(--kc-gold-line) 38%, transparent);
+}
+
+.kc-showtime-banner--warn {
+  background: color-mix(in oklch, oklch(0.78 0.09 82) 11%, var(--kc-piano));
+  color: color-mix(in oklch, var(--kc-cream) 94%, var(--kc-gold-deep));
+}
+
+.kc-showtime-banner--danger {
+  background: color-mix(in oklch, var(--kc-velvet) 14%, var(--kc-piano));
+  color: color-mix(in oklch, var(--kc-cream) 97%, transparent);
+  border-color: color-mix(in oklch, var(--kc-velvet) 42%, transparent);
+}
+
+.kc-showtime-banner--info {
+  background: color-mix(in oklch, var(--kc-panel) 65%, black);
+  color: var(--kc-champagne);
+}
+
+.kc-showtime-banner--action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: color-mix(in oklch, oklch(0.78 0.09 82) 9%, var(--kc-piano));
+  color: color-mix(in oklch, var(--kc-cream) 95%, var(--kc-gold-deep));
+}
+
+.kc-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  padding: 0.2rem 0.72rem;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in oklch, var(--kc-gold) 26%, transparent);
+  background: color-mix(in oklch, var(--kc-panel-elevated) 50%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--kc-gold-bright) 9%, transparent);
+  color: var(--kc-champagne);
+}
+
+.kc-mode-pill--live {
+  border-color: color-mix(in oklch, var(--kc-teal-theatre) 38%, transparent);
+  color: color-mix(in oklch, var(--kc-cream) 94%, var(--kc-teal-theatre));
+  background: color-mix(in oklch, var(--kc-teal-theatre) 11%, var(--kc-piano));
+}
+
+.kc-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.625rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  border: 1px solid color-mix(in oklch, var(--kc-gold-line) 75%, transparent);
+  background: color-mix(in oklch, var(--kc-piano) 50%, black);
+  color: var(--kc-cream);
+}
+
+.kc-status-pill--ok {
+  border-color: color-mix(in oklch, var(--kc-teal-theatre) 32%, transparent);
+  background: color-mix(in oklch, var(--kc-teal-theatre) 12%, var(--kc-piano));
+}
+
+.kc-status-pill--idle {
+  color: var(--kc-champagne);
+}
+
+.kc-status-pill--bad {
+  border-color: color-mix(in oklch, var(--kc-velvet) 36%, transparent);
+  background: color-mix(in oklch, var(--kc-velvet) 11%, var(--kc-piano));
+  color: color-mix(in oklch, var(--kc-cream) 95%, transparent);
+}
+
+.kc-loading-theatre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  min-height: min(42vh, 16rem);
+}
+
+.kc-loading-theatre__bar {
+  width: min(11rem, 52vw);
+  height: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--kc-gold-bright) 45%, transparent),
+    color-mix(in oklch, var(--kc-gold) 25%, transparent),
+    color-mix(in oklch, var(--kc-gold-bright) 45%, transparent),
+    transparent
+  );
+  background-size: 220% 100%;
+  animation: kc-banner-shimmer 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kc-loading-theatre__bar {
+    animation: none;
+    opacity: 0.88;
+  }
+}
+
+.kasdan-hollywood .host-operator-root .host-operator-glow {
+  box-shadow:
+    var(--kc-shadow-inset-gold),
+    inset 0 0 56px color-mix(in oklch, var(--kc-gold) 2.5%, transparent);
+}
+
+.kasdan-hollywood .host-operator-root [data-slot="button"].border-border:not(:disabled):hover {
+  background: color-mix(in oklch, var(--kc-gold) 10%, var(--kc-panel-elevated)) !important;
+  border-color: color-mix(in oklch, var(--kc-gold-bright) 36%, transparent) !important;
+  color: var(--kc-cream) !important;
+}
+
+.kasdan-hollywood .show-builder-shell [data-slot="button"].border-border:not(:disabled):hover {
+  background: color-mix(in oklch, var(--kc-gold) 8%, var(--kc-panel-elevated)) !important;
+  border-color: color-mix(in oklch, var(--kc-gold-bright) 32%, transparent) !important;
+}
+
+.kasdan-hollywood .show-builder-shell [data-slot="button"]:disabled {
+  opacity: 0.44;
+  cursor: not-allowed;
+}
+
+.kasdan-hollywood .join-audience-root a.border-border:not(:disabled):hover,
+.kasdan-hollywood .join-audience-root [data-slot="button"].border-border:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--kc-gold-bright) 34%, transparent) !important;
+  background: color-mix(in oklch, var(--kc-gold) 7%, black) !important;
+}
+
+.kasdan-hollywood .join-audience-root .join-ballot-shell {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, var(--kc-gold-bright) 7%, transparent),
+    inset 0 0 44px color-mix(in oklch, var(--kc-gold) 2.2%, transparent);
+}
+
+.kasdan-hollywood .host-operator-root input[type="checkbox"].kc-ticket-checkbox {
+  accent-color: color-mix(in oklch, var(--kc-teal-theatre) 88%, black);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.kasdan-hollywood .host-operator-root input[type="checkbox"].kc-ticket-checkbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

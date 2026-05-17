@@ -36,7 +36,7 @@ export function KasdanHollywoodTheme({
 
       className={cn(
 
-        "kasdan-hollywood relative flex min-h-dvh flex-1 flex-col bg-[var(--kc-bg-deep)] text-[var(--kc-cream)] antialiased supports-[min-height:100dvh]:min-h-[100dvh]",
+        "kasdan-hollywood relative flex min-h-dvh flex-1 flex-col bg-[var(--kc-piano)] text-[var(--kc-cream)] antialiased supports-[min-height:100dvh]:min-h-[100dvh]",
 
         className,
 

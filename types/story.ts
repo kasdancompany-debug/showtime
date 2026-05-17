@@ -17,11 +17,10 @@ export interface StoryNode {
    * Example: `01_Opening.mp4`
    */
   operatorClipName: string;
-  /**
-   * Optional: video file stored in this browser’s IndexedDB (Story builder / film library).
-   * Same machine + browser only. Live /host and /screen do not play this file.
-   */
-  localVideoKey: string | null;
+  /** Booth script from Show builder (optional). */
+  operatorNotes?: string;
+  /** draft | ready for live-readiness (Show builder). */
+  beatStatus?: "draft" | "ready";
   question: string | null;
   optionA: StoryBranch | null;
   optionB: StoryBranch | null;

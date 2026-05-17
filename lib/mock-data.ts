@@ -9,7 +9,6 @@ export const EMPTY_STORY_GRAPH: StoryGraph = {
       title: "Opening",
       subtitle: null,
       operatorClipName: "00_placeholder.mp4",
-      localVideoKey: null,
       question: null,
       optionA: null,
       optionB: null,

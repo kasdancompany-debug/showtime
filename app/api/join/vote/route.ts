@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { getSupabaseConfig } from "@/lib/supabase/env";
-import type { Database, VoteOption } from "@/lib/supabase/database.types";
+import type { Database, VoteAb } from "@/lib/supabase/database.types";
 
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -27,9 +27,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Expected JSON object" }, { status: 400 });
   }
 
-  const { eventId, storyNodeId, audienceMemberId, choice } = body as Record<string, unknown>;
-  if (typeof eventId !== "string" || typeof storyNodeId !== "string" || typeof audienceMemberId !== "string") {
-    return NextResponse.json({ error: "eventId, storyNodeId, and audienceMemberId are required" }, { status: 400 });
+  const { eventId, storyNodeId, sessionId, choice } = body as Record<string, unknown>;
+  if (typeof eventId !== "string" || typeof storyNodeId !== "string" || typeof sessionId !== "string") {
+    return NextResponse.json({ error: "eventId, storyNodeId, and sessionId are required" }, { status: 400 });
   }
   if (choice !== "A" && choice !== "B") {
     return NextResponse.json({ error: "choice must be A or B" }, { status: 400 });
@@ -42,9 +42,9 @@ export async function POST(req: Request) {
 
   const row: Database["public"]["Tables"]["votes"]["Insert"] = {
     event_id: eventId,
-    story_node_id: storyNodeId,
-    audience_member_id: audienceMemberId,
-    vote_option: choice as VoteOption,
+    node_id: storyNodeId,
+    session_id: sessionId,
+    ballot_option: choice as VoteAb,
   };
 
   const { error } = await client.from("votes").insert(row);

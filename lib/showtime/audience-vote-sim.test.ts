@@ -109,8 +109,6 @@ describe("simulation notes — bottlenecks & optimizations (see assertions above
       p95: expect.any(Number),
     });
 
-    console.info("[audience-vote-sim] latency snapshot (delivery delay incl. reconnect)", stats);
-
     const rng = createRng(1);
     let sum = 0;
     const N = 10_000;

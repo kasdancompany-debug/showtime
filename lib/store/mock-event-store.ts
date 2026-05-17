@@ -18,17 +18,11 @@ import {
   startVote,
   tickCountdown,
 } from "@/lib/story-engine/engine";
-import type { StoryRoomSnapshotPayload } from "@/lib/realtime/payloads";
-import { scheduleRoomSnapshotEmit } from "@/lib/realtime/story-room-snapshot";
 import type { ShowtimeReportSegment } from "@/lib/showtime/event-report";
-import { getNode, normalizeStoryGraph } from "@/lib/story-engine/graph";
-import type { EventPlaybackState, StoryGraph, StoryNodeId, VoteChoice } from "@/types";
+import { getNode } from "@/lib/story-engine/graph";
+import type { StoryGraph, StoryNodeId, VoteChoice } from "@/types";
 
 export type LiveShowStatus = "draft" | "waiting" | "playing" | "voting" | "revealing" | "ended";
-
-function cloneGraph(g: StoryGraph): StoryGraph {
-  return JSON.parse(JSON.stringify(g)) as StoryGraph;
-}
 
 export type LogEntry = { id: string; at: number; message: string };
 
@@ -43,17 +37,11 @@ function pushLog(log: LogEntry[], message: string): LogEntry[] {
   return next.slice(0, LOG_CAP);
 }
 
-function liveStatusFrom(
-  eventStarted: boolean,
-  ended: boolean,
-  phase: string,
-  isPlaying: boolean,
-): LiveShowStatus {
+function liveStatusFrom(eventStarted: boolean, ended: boolean, phase: string): LiveShowStatus {
   if (ended) return "ended";
   if (!eventStarted) return "draft";
   if (phase === "countdown" || phase === "open") return "voting";
   if (phase === "tiebreak" || phase === "awaiting_reveal" || phase === "revealed") return "revealing";
-  if (isPlaying) return "playing";
   return "waiting";
 }
 
@@ -66,7 +54,6 @@ export interface MockEventStore {
   eventId: string;
   eventStarted: boolean;
   showEnded: boolean;
-  playback: { isPlaying: boolean; positionSec: number; durationSec: number | null };
   /** Countdown preset (seconds) used when arming a vote runway. */
   countdownPresetSec: number;
   /** Poll stays open this many seconds after voting opens (immediate open or post-countdown). */
@@ -83,12 +70,6 @@ export interface MockEventStore {
   dryRunMode: boolean;
   /** Logged when host advances after each reveal (export report). */
   reportSegments: ShowtimeReportSegment[];
-  /** When the operator loaded a row from Saved films; used to clear runtime if that film is deleted. */
-  activeSavedFilmId: string | null;
-  /** Bumped when media/graph is cleared so previews and /screen remount stale blob URLs. */
-  mediaGeneration: number;
-  /** Bumped when playback timing resets so follower tabs sync without spamming on telemetry-only updates. */
-  playbackSyncEpoch: number;
 
   /** Legacy shape for /screen + /join */
   votePhase: import("@/types").VotePhase;
@@ -101,27 +82,9 @@ export interface MockEventStore {
   graph: StoryGraph;
   liveStatus: LiveShowStatus;
 
-  setGraph: (g: StoryGraph) => void;
-  /**
-   * Replace the story with a saved film: playhead at root, vote machine reset, show stopped.
-   * Keeps event code / id; updates optional night title from meta.
-   */
-  loadStoryGraph: (
-    g: StoryGraph,
-    meta?: { displayName?: string; eventTitle?: string; savedFilmId?: string | null },
-  ) => void;
   setCurrentNodeId: (id: StoryNodeId) => void;
   startEvent: () => void;
   endShow: () => void;
-  playSegment: () => void;
-  pauseSegment: () => void;
-  togglePlay: () => void;
-  restartSegment: () => void;
-  seekRelative: (sec: number) => void;
-  setPlaybackPosition: (sec: number) => void;
-  setPlaybackDuration: (sec: number | null) => void;
-  /** Merge playback telemetry from projector / remote tabs (no activity log). */
-  applyRemotePlayback: (patch: Partial<EventPlaybackState>) => void;
   setCountdownPreset: (sec: number) => void;
   setPollDuration: (sec: number) => void;
   setAllowAnonymousQuickJoin: (v: boolean) => void;
@@ -143,6 +106,10 @@ export interface MockEventStore {
   registerAudienceMember: () => void;
   /** Dev: simulate phones */
   setAudienceConnected: (n: number) => void;
+  /** Align Realtime `event:${id}` with Supabase row for {@link eventCode} (host + /screen). */
+  setEventId: (id: string) => void;
+  /** After loading the live row from Supabase — keeps /screen heartbeats and join URLs on the same night. */
+  syncSupabaseEventMeta: (params: { eventId: string; code: string; title: string }) => void;
   pulseDemoVotes: () => void;
   /** Hard reset: draft state, root playhead, cleared votes/audience — same graph & event metadata */
   resetLiveEvent: () => void;
@@ -155,19 +122,10 @@ export interface MockEventStore {
   /** Append one line to the operator activity log (e.g. projection alerts from /screen). */
   appendActivityLog: (message: string) => void;
   setProjectionSurfaceFault: (message: string | null) => void;
-  /** Nuclear: empty story, mock event ids, stop show, clear votes and active saved film ref. */
-  clearActiveFilm: () => void;
-  /** If this saved film id is the active one, run {@link clearActiveFilm}. */
-  clearActiveFilmIfSavedFilm: (savedFilmId: string) => void;
-  /** Legacy no-op — video playback removed; kept so older UI bundles do not crash. */
-  clearCurrentNodeMedia: () => Promise<void>;
-  /** Projector / spare operator tabs: replace live story state from leader snapshot. */
-  applyRemoteStoryRoomSnapshot: (payload: StoryRoomSnapshotPayload) => void;
 }
 
 function legacyFromEngine(s: {
   engine: typeof initialEngine;
-  playback: EventPlaybackState;
   eventStarted: boolean;
   showEnded: boolean;
 }) {
@@ -200,7 +158,7 @@ function legacyFromEngine(s: {
     revealedWinner,
     currentNodeId: e.currentNodeId,
     graph: e.graph,
-    liveStatus: liveStatusFrom(s.eventStarted, s.showEnded, e.phase, s.playback.isPlaying),
+    liveStatus: liveStatusFrom(s.eventStarted, s.showEnded, e.phase),
   };
 }
 
@@ -211,7 +169,6 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   eventId: MOCK_EVENT.id,
   eventStarted: false,
   showEnded: false,
-  playback: { isPlaying: false, positionSec: 0, durationSec: null },
   countdownPresetSec: 30,
     /** Game-show pacing (~25–30s); host can extend in the control desk. */
     pollDurationSec: 30,
@@ -222,72 +179,11 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   projectionSurfaceFault: null,
   dryRunMode: false,
   reportSegments: [],
-  activeSavedFilmId: null,
-  mediaGeneration: 0,
-  playbackSyncEpoch: 0,
   ...legacyFromEngine({
     engine: initialEngine,
-    playback: { isPlaying: false, positionSec: 0, durationSec: null },
     eventStarted: false,
     showEnded: false,
   }),
-
-  setGraph: (g) => {
-    set((s) => {
-      const graph = normalizeStoryGraph(cloneGraph(g));
-      const playhead = graph.nodes[s.engine.currentNodeId]
-        ? s.engine.currentNodeId
-        : graph.rootId;
-      const engine = createStoryEngineState(graph, playhead);
-      return {
-        engine,
-        processedRemoteVoteIds: [],
-        projectionSurfaceFault: null,
-        reportSegments: [],
-        activeSavedFilmId: null,
-        mediaGeneration: s.mediaGeneration + 1,
-        playbackSyncEpoch: s.playbackSyncEpoch + 1,
-        activityLog: pushLog(s.activityLog, "Story graph updated"),
-        ...legacyFromEngine({ ...s, engine }),
-      };
-    });
-    scheduleRoomSnapshotEmit();
-  },
-
-  loadStoryGraph: (g, meta) =>
-    set((s) => {
-      const graph = normalizeStoryGraph(cloneGraph(g));
-      const engine = createStoryEngineState(graph, graph.rootId);
-      const playback = { isPlaying: false, positionSec: 0, durationSec: null };
-      const eventTitle =
-        meta?.eventTitle?.trim() ||
-        meta?.displayName?.trim() ||
-        s.eventTitle;
-      const label = meta?.displayName?.trim();
-      const msg = label ? `Loaded film “${label}”` : "Loaded saved film";
-      const activeSavedFilmId =
-        meta?.savedFilmId !== undefined ? (meta.savedFilmId ?? null) : null;
-      return {
-        engine,
-        eventStarted: false,
-        showEnded: false,
-        playback,
-        eventTitle,
-        processedRemoteVoteIds: [],
-        projectionSurfaceFault: null,
-        reportSegments: [],
-        activeSavedFilmId,
-        mediaGeneration: s.mediaGeneration + 1,
-        playbackSyncEpoch: s.playbackSyncEpoch + 1,
-        activityLog: pushLog(s.activityLog, msg),
-        ...legacyFromEngine({
-          engine,
-          playback,
-          eventStarted: false,
-          showEnded: false,
-        }),
-      };
-    }),
 
   setCurrentNodeId: (id) =>
     set((s) => {
@@ -316,77 +212,9 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   endShow: () =>
     set((s) => ({
       showEnded: true,
-      playback: { ...s.playback, isPlaying: false },
       activityLog: pushLog(s.activityLog, "Show ended"),
-      ...legacyFromEngine({ ...s, showEnded: true, playback: { ...s.playback, isPlaying: false } }),
+      ...legacyFromEngine({ ...s, showEnded: true }),
     })),
-
-  playSegment: () =>
-    set((s) => ({
-      playback: { ...s.playback, isPlaying: true },
-      activityLog: pushLog(s.activityLog, "Play segment"),
-      ...legacyFromEngine({ ...s, playback: { ...s.playback, isPlaying: true } }),
-    })),
-
-  pauseSegment: () =>
-    set((s) => ({
-      playback: { ...s.playback, isPlaying: false },
-      activityLog: pushLog(s.activityLog, "Pause segment"),
-      ...legacyFromEngine({ ...s, playback: { ...s.playback, isPlaying: false } }),
-    })),
-
-  togglePlay: () =>
-    set((s) => {
-      const isPlaying = !s.playback.isPlaying;
-      return {
-        playback: { ...s.playback, isPlaying },
-        activityLog: pushLog(s.activityLog, isPlaying ? "Play" : "Pause"),
-        ...legacyFromEngine({ ...s, playback: { ...s.playback, isPlaying } }),
-      };
-    }),
-
-  seekRelative: (sec) =>
-    set((s) => ({
-      playback: {
-        ...s.playback,
-        positionSec: Math.max(0, s.playback.positionSec + sec),
-      },
-      playbackSyncEpoch: s.playbackSyncEpoch + 1,
-    })),
-
-  restartSegment: () =>
-    set((s) => ({
-      playback: { ...s.playback, positionSec: 0, isPlaying: false },
-      playbackSyncEpoch: s.playbackSyncEpoch + 1,
-      activityLog: pushLog(s.activityLog, "Restart segment"),
-      ...legacyFromEngine({
-        ...s,
-        playback: { ...s.playback, positionSec: 0, isPlaying: false },
-      }),
-    })),
-
-  setPlaybackPosition: (sec) =>
-    set((s) => ({
-      playback: { ...s.playback, positionSec: Math.max(0, sec) },
-    })),
-
-  setPlaybackDuration: (durationSec) =>
-    set((s) => ({
-      playback: { ...s.playback, durationSec },
-    })),
-
-  applyRemotePlayback: (patch) =>
-    set((s) => {
-      const next: EventPlaybackState = {
-        isPlaying: patch.isPlaying ?? s.playback.isPlaying,
-        positionSec: patch.positionSec ?? s.playback.positionSec,
-        durationSec: patch.durationSec !== undefined ? patch.durationSec : s.playback.durationSec,
-      };
-      return {
-        playback: next,
-        ...legacyFromEngine({ ...s, playback: next }),
-      };
-    }),
 
   setCountdownPreset: (sec) => set({ countdownPresetSec: sec }),
 
@@ -523,19 +351,11 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
           };
           reportSegments = [...s.reportSegments, seg];
         }
-        const playback = {
-          ...s.playback,
-          positionSec: 0,
-          durationSec: null,
-          isPlaying: false,
-        };
         return {
           engine,
-          playback,
-          playbackSyncEpoch: s.playbackSyncEpoch + 1,
           reportSegments,
           activityLog: pushLog(s.activityLog, `Advanced to ${engine.currentNodeId} — play next clip manually`),
-          ...legacyFromEngine({ ...s, engine, playback }),
+          ...legacyFromEngine({ ...s, engine }),
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Advance failed";
@@ -638,6 +458,25 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
 
   setAudienceConnected: (n) => set({ audienceConnected: Math.max(0, n) }),
 
+  setEventId: (id) => {
+    const next = id.trim();
+    if (!next) return;
+    if (get().eventId === next) return;
+    set({ eventId: next });
+  },
+
+  syncSupabaseEventMeta: ({ eventId, code, title }) => {
+    const id = eventId.trim();
+    const c = code.trim().toUpperCase();
+    if (!id || !c) return;
+    const t = title.trim();
+    set({
+      eventId: id,
+      eventCode: c,
+      ...(t ? { eventTitle: t } : {}),
+    });
+  },
+
   pulseDemoVotes: () =>
     set((s) => {
       if (s.engine.phase !== "open") return {};
@@ -657,13 +496,10 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   resetLiveEvent: () =>
     set((s) => {
       const engine = createStoryEngineState(s.graph, s.graph.rootId);
-      const playback = { isPlaying: false, positionSec: 0, durationSec: null };
       return {
         engine,
         eventStarted: false,
         showEnded: false,
-        playback,
-        playbackSyncEpoch: s.playbackSyncEpoch + 1,
         audienceConnected: 0,
         allowAnonymousQuickJoin: false,
         processedRemoteVoteIds: [],
@@ -672,7 +508,6 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
         activityLog: pushLog(s.activityLog, "Event reset — draft at opening beat"),
         ...legacyFromEngine({
           engine,
-          playback,
           eventStarted: false,
           showEnded: false,
         }),
@@ -688,12 +523,10 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
   rehearsalResetToOpeningBeat: () =>
     set((s) => {
       const engine = createStoryEngineState(s.graph, s.graph.rootId);
-      const playback = { isPlaying: false, positionSec: 0, durationSec: null };
       return {
         engine,
         eventStarted: false,
         showEnded: false,
-        playback,
         audienceConnected: 0,
         processedRemoteVoteIds: [],
         projectionSurfaceFault: null,
@@ -704,7 +537,6 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
         ),
         ...legacyFromEngine({
           engine,
-          playback,
           eventStarted: false,
           showEnded: false,
         }),
@@ -744,90 +576,4 @@ export const useMockEventStore = create<MockEventStore>((set, get) => ({
 
   setProjectionSurfaceFault: (message) =>
     set({ projectionSurfaceFault: message?.trim() ? message.trim() : null }),
-
-  clearActiveFilm: () => {
-    set((s) => {
-      const graph = normalizeStoryGraph(cloneGraph(EMPTY_STORY_GRAPH));
-      const engine = createStoryEngineState(graph, graph.rootId);
-      const playback = { isPlaying: false, positionSec: 0, durationSec: null };
-      return {
-        engine,
-        eventTitle: MOCK_EVENT.title,
-        eventCode: MOCK_EVENT.eventCode,
-        eventId: MOCK_EVENT.id,
-        eventStarted: false,
-        showEnded: false,
-        playback,
-        playbackSyncEpoch: s.playbackSyncEpoch + 1,
-        audienceConnected: 0,
-        processedRemoteVoteIds: [],
-        projectionSurfaceFault: null,
-        reportSegments: [],
-        activeSavedFilmId: null,
-        mediaGeneration: s.mediaGeneration + 1,
-        activityLog: pushLog(s.activityLog, "Active film cleared — empty story"),
-        ...legacyFromEngine({
-          engine,
-          playback,
-          eventStarted: false,
-          showEnded: false,
-        }),
-      };
-    });
-    scheduleRoomSnapshotEmit();
-  },
-
-  clearActiveFilmIfSavedFilm: (savedFilmId) => {
-    if (get().activeSavedFilmId === savedFilmId) {
-      get().clearActiveFilm();
-    }
-  },
-
-  clearCurrentNodeMedia: async () => {
-    /* Video / IndexedDB paths removed — operator uses clip names only. */
-  },
-
-  applyRemoteStoryRoomSnapshot: (payload) => {
-    if (payload.type !== "story_room_snapshot" || payload.version !== 1) return;
-    set((s) => {
-      try {
-        const graph = normalizeStoryGraph(cloneGraph(payload.engine.graph));
-        const engine = { ...payload.engine, graph };
-        const playback = { ...payload.playback };
-        return {
-          engine,
-          playback,
-          eventStarted: payload.eventStarted,
-          showEnded: payload.showEnded,
-          eventTitle: payload.eventTitle,
-          activeSavedFilmId: payload.activeSavedFilmId,
-          mediaGeneration: payload.mediaGeneration,
-          playbackSyncEpoch: payload.playbackSyncEpoch,
-          processedRemoteVoteIds: [...payload.processedRemoteVoteIds],
-          projectionSurfaceFault: payload.projectionSurfaceFault,
-          dryRunMode: payload.dryRunMode,
-          allowAnonymousQuickJoin: payload.allowAnonymousQuickJoin,
-          countdownPresetSec: payload.countdownPresetSec,
-          pollDurationSec: payload.pollDurationSec,
-          reportSegments: [...payload.reportSegments],
-          audienceConnected: payload.audienceConnected,
-          activityLog: s.activityLog,
-          ...legacyFromEngine({
-            engine,
-            playback,
-            eventStarted: payload.eventStarted,
-            showEnded: payload.showEnded,
-          }),
-        };
-      } catch (err) {
-        if (typeof console !== "undefined" && console.warn) {
-          console.warn(
-            "[showtime] applyRemoteStoryRoomSnapshot",
-            err instanceof Error ? err.message : err,
-          );
-        }
-        return {};
-      }
-    });
-  },
 }));

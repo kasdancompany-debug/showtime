@@ -57,10 +57,8 @@ function subscribeEventSyncInner(
     }).on("broadcast", { event: "sync" }, ({ payload }) => {
       try {
         onMessage(payload as EventRealtimePayload);
-      } catch (e) {
-        if (typeof console !== "undefined" && console.warn) {
-          console.warn("[showtime] event-sync handler", e instanceof Error ? e.message : e);
-        }
+      } catch {
+        /* ignore malformed payloads */
       }
     });
     ch.subscribe((status) => {
@@ -79,10 +77,8 @@ function subscribeEventSyncInner(
   const handler = (ev: MessageEvent<EventRealtimePayload>) => {
     try {
       onMessage(ev.data);
-    } catch (e) {
-      if (typeof console !== "undefined" && console.warn) {
-        console.warn("[showtime] BroadcastChannel handler", e instanceof Error ? e.message : e);
-      }
+    } catch {
+      /* ignore malformed payloads */
     }
   };
   bc.addEventListener("message", handler);

@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Hosted reels over GitHub’s 100MB limit — deploy via CDN/Blob and point beats at that URL
+public/videos/IMG_5133.MOV
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

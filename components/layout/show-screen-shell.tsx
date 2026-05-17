@@ -13,7 +13,10 @@ type ShowScreenShellProps = {
 export function ShowScreenShell({ children, className }: ShowScreenShellProps) {
   return (
     <div
-      className={cn("fixed inset-0 z-[200] flex flex-col bg-black overscroll-none [touch-action:pan-x_pan-y]", className)}
+      className={cn(
+        "fixed inset-0 z-[200] flex flex-col bg-[var(--kc-piano)] overscroll-none [touch-action:none]",
+        className,
+      )}
       style={{
         height: "100dvh",
         maxHeight: "100dvh",

@@ -11,14 +11,14 @@ type Props = {
   variant?: "full" | "minimal";
 };
 
-/** Double-line Art Deco frame with corner sunburst ornaments */
+/** Restrained lobby frame — hairline brass, no corner filigree */
 export function ArtDecoFrame({ children, className, variant = "full" }: Props) {
   return (
     <div
       className={cn(
-        "relative border-2 border-[var(--kc-gold-muted)] bg-[var(--kc-panel)]/55 shadow-[var(--kc-shadow-inset-gold),var(--kc-shadow-card)]",
-        "before:pointer-events-none before:absolute before:inset-2 before:border before:border-[var(--kc-gold-faint)]",
-        variant === "full" && "kc-art-deco-corners",
+        "relative rounded-[2px] border border-[color-mix(in_oklch,var(--kc-gold)_26%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_88%,transparent)] shadow-[var(--kc-shadow-inset-gold),var(--kc-shadow-card)]",
+        variant === "full" &&
+          "before:pointer-events-none before:absolute before:inset-[10px] before:rounded-[1px] before:border before:border-[color-mix(in_oklch,var(--kc-gold)_14%,transparent)]",
         className,
       )}
     >

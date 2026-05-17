@@ -11,7 +11,7 @@ export function getShowtimeSyncMode(): ShowtimeSyncMode {
 }
 
 export function showtimeSyncModeLabel(mode: ShowtimeSyncMode): string {
-  return mode === "live_supabase" ? "Live Supabase" : "Local Preview";
+  return mode === "live_supabase" ? "Live sync" : "Local preview";
 }
 
 export function showtimeSyncModeDescription(mode: ShowtimeSyncMode): string {

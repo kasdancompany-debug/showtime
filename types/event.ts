@@ -11,10 +11,3 @@ export interface ShowtimeEvent {
   currentNodeId: StoryNodeId;
   createdAt: string;
 }
-
-export interface EventPlaybackState {
-  isPlaying: boolean;
-  positionSec: number;
-  /** Known when the projector loads media metadata or receives telemetry */
-  durationSec: number | null;
-}

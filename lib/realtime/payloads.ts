@@ -1,32 +1,8 @@
-import type { StoryEngineState } from "@/lib/story-engine/engine-types";
-import type { ShowtimeReportSegment } from "@/lib/showtime/event-report";
-import type { EventPlaybackState, StoryNodeId, VoteChoice, VotePhase } from "@/types";
+import type { StoryNodeId, VoteChoice, VotePhase } from "@/types";
 
 /** Shapes to broadcast on `event:${eventId}` once Supabase Realtime is connected */
 
 export type PlaybackCommand = "play" | "pause" | "restart" | "seek";
-
-/** Full operator room sync so /screen (and second /host tabs) stay aligned with Zustand on the leader tab. */
-export type StoryRoomSnapshotPayload = {
-  type: "story_room_snapshot";
-  version: 1;
-  engine: StoryEngineState;
-  playback: EventPlaybackState;
-  playbackSyncEpoch: number;
-  eventStarted: boolean;
-  showEnded: boolean;
-  eventTitle: string;
-  activeSavedFilmId: string | null;
-  mediaGeneration: number;
-  processedRemoteVoteIds: string[];
-  projectionSurfaceFault: string | null;
-  dryRunMode: boolean;
-  allowAnonymousQuickJoin: boolean;
-  countdownPresetSec: number;
-  pollDurationSec: number;
-  reportSegments: ShowtimeReportSegment[];
-  audienceConnected: number;
-};
 
 export type EventRealtimePayload =
   | {
@@ -79,5 +55,4 @@ export type EventRealtimePayload =
       kind: "video_error" | "video_recovered";
       message: string;
       nodeId?: StoryNodeId;
-    }
-  | StoryRoomSnapshotPayload;
+    };

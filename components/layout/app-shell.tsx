@@ -14,7 +14,7 @@ export function AppShell({ children, className }: AppShellProps) {
   return (
     <div
       className={cn(
-        "flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden bg-[var(--kc-bg-deep)] supports-[min-height:100dvh]:min-h-[100dvh]",
+        "flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden bg-[var(--kc-piano)] supports-[min-height:100dvh]:min-h-[100dvh]",
         className,
       )}
     >

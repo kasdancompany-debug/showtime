@@ -19,14 +19,12 @@ import {
   Zap,
 } from "lucide-react";
 
-import { FilmGrain } from "@/components/cinematic/film-grain";
 import { HelpBulletedList, InlineHelpPanel } from "@/components/help/inline-help-panel";
 import {
   ArtDecoFrame,
   CountdownMedallion,
   GoldButton,
   StudioBadge,
-  TheatreCurtainBackground,
   VoteOptionCard,
 } from "@/components/kasdan";
 import { kcCopy } from "@/lib/design/kasdan-hollywood-tokens";
@@ -270,13 +268,13 @@ export function JoinExperience({ eventCode }: Props) {
 
   if (room.joinsClosed && room.joinsClosedReason) {
     const copy =
-      room.joinsClosedReason === "draft"
+      room.joinsClosedReason === "setup"
         ? "The host has not opened this screening yet. Take your seat — the lobby will unlock when the show is ready."
         : "This screening has ended. Thanks for joining.";
     return (
       <JoinShell>
         <JoinMessageCard
-          title={room.joinsClosedReason === "draft" ? "Not accepting guests yet" : "Show has ended"}
+          title={room.joinsClosedReason === "setup" ? "Not accepting guests yet" : "Show has ended"}
           subtitle={copy}
           actions={
             <>
@@ -712,12 +710,9 @@ function JoinMessageCard({
 
 function JoinShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-dvh flex-1 flex-col overflow-x-hidden bg-[var(--kc-bg-deep)] text-[var(--kc-cream)] supports-[min-height:100dvh]:min-h-[100dvh]">
-      <TheatreCurtainBackground intensity="subtle" />
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_rgba(0,0,0,0.72)]" />
-      <FilmGrain />
-      <div className="relative z-[2] flex min-h-0 flex-1 flex-col">
-        <div className="sticky top-0 z-40 flex shrink-0 items-center border-b border-white/10 bg-[var(--kc-bg-deep)]/85 px-4 py-3 backdrop-blur-md supports-[padding:max(0px)]:pt-[max(0.65rem,env(safe-area-inset-top))]">
+    <div className="relative flex min-h-dvh flex-1 flex-col overflow-x-hidden bg-background text-foreground supports-[min-height:100dvh]:min-h-[100dvh]">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="sticky top-0 z-40 flex shrink-0 items-center border-b border-border bg-background/95 px-4 py-3 supports-[padding:max(0px)]:pt-[max(0.65rem,env(safe-area-inset-top))]">
           <StudioBadge href="/" showSeal className="shrink-0 scale-[0.95] sm:scale-100" />
         </div>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
@@ -887,7 +882,7 @@ function LandingScreen({
             <span className="h-px w-10 shrink-0 bg-[linear-gradient(270deg,var(--kc-gold-faint),transparent)] sm:w-14" />
           </div>
         </div>
-        <h1 className="kc-display mt-7 max-w-[15ch] text-balance text-[clamp(1.875rem,6.5vw,3rem)] font-normal leading-[1.08] tracking-[0.04em] text-[var(--kc-cream)] sm:mt-9 sm:max-w-[18ch]">
+        <h1 className="font-heading mt-7 max-w-[15ch] text-balance text-[clamp(1.875rem,6.5vw,3rem)] font-normal leading-[1.08] tracking-[0.03em] text-[var(--kc-cream)] sm:mt-9 sm:max-w-[18ch]">
           {title || "Tonight’s feature"}
         </h1>
         <p className="mt-8 max-w-[26ch] font-[family-name:var(--font-body-serif)] text-base italic leading-[1.65] text-[var(--kc-cream-dim)] sm:mt-10 sm:text-lg">
@@ -897,10 +892,10 @@ function LandingScreen({
 
       {/* Lower “reservation desk” — single framed surface; ticket lintel + fields */}
       <div className="shrink-0 px-1 sm:px-0">
-        <div className="relative overflow-hidden rounded-[2px] shadow-[var(--kc-shadow-marquee)]">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,oklch(0.82_0.04_82/0.2),transparent)]" />
-          <ArtDecoFrame variant="full" className="border-[oklch(0.62_0.045_78/0.35)] bg-[oklch(0.15_0.03_48/0.72)] px-7 py-8 backdrop-blur-md sm:px-10 sm:py-11">
-            <div className="relative border-b border-[oklch(0.72_0.04_78/0.14)] pb-8 text-center sm:pb-9">
+        <div className="relative overflow-hidden rounded-[2px] shadow-[var(--kc-shadow-card)]">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,color-mix(in_oklch,var(--kc-gold-bright)_22%,transparent),transparent)]" />
+          <ArtDecoFrame variant="full" className="border-[color-mix(in_oklch,var(--kc-gold)_28%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_82%,transparent)] px-7 py-8 sm:px-10 sm:py-11">
+            <div className="relative border-b border-[color-mix(in_oklch,var(--kc-gold)_16%,transparent)] pb-8 text-center sm:pb-9">
               <p className="kc-eyebrow text-[0.6rem] tracking-[0.38em] text-[var(--kc-champagne)]/80">Admit one</p>
               <p className="mt-4 font-mono text-[clamp(1.125rem,3.5vw,1.35rem)] font-medium tracking-[0.28em] text-[var(--kc-champagne)]">
                 {eventCode.toUpperCase()}
@@ -947,7 +942,7 @@ function LandingScreen({
             </div>
 
             {joinErr ? (
-              <p className="mt-6 text-center text-sm leading-relaxed text-red-400/95" role="alert">
+              <p className="mt-6 text-center text-sm leading-relaxed text-[color-mix(in_oklch,var(--kc-danger)_78%,var(--kc-ivory))]" role="alert">
                 {joinErr}
               </p>
             ) : null}
@@ -1059,9 +1054,13 @@ function WaitingScreen({
         </div>
       )}
 
-      <p className="font-mono text-[clamp(0.72rem,3vw,0.85rem)] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)]">
+      <Link
+        href="/"
+        className="font-mono text-[clamp(0.72rem,3vw,0.85rem)] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)] no-underline transition-opacity hover:opacity-90 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_70%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--kc-piano)]"
+        aria-label="Showtime home"
+      >
         Kasdan Co. presents
-      </p>
+      </Link>
       <h2 className="mt-5 font-heading text-[clamp(1.5rem,6vw,2.25rem)] font-normal leading-tight tracking-tight text-[var(--kc-cream)]">
         {title}
       </h2>

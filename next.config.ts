@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /** Hides the floating “N” dev indicator (clean projector / house tabs). Errors still surface via overlay when needed. */
+  devIndicators: false,
 };
 
 export default nextConfig;

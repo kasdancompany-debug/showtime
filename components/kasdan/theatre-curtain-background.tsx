@@ -20,17 +20,17 @@ export function TheatreCurtainBackground({ children, className, intensity = "sta
   return (
     <div className={cn("pointer-events-none absolute inset-0 overflow-hidden", className)}>
       <div
-        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_65%_at_50%_-8%,oklch(0.72_0.04_78/0.06),transparent_58%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_-5%,color-mix(in_oklch,var(--kc-gold-bright)_8%,transparent),transparent_55%)]"
         aria-hidden
       />
       {!soft ? (
         <div
-          className="absolute inset-0 bg-[radial-gradient(ellipse_75%_45%_at_85%_95%,oklch(0.28_0.06_25/0.14),transparent_55%)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_88%_96%,color-mix(in_oklch,var(--kc-velvet)_10%,transparent),transparent_55%)]"
           aria-hidden
         />
       ) : null}
       <div
-        className="absolute inset-0 bg-[radial-gradient(ellipse_55%_40%_at_12%_88%,oklch(0.2_0.03_48/0.22),transparent_52%)]"
+        className="absolute inset-0 bg-[radial-gradient(ellipse_50%_38%_at_10%_90%,color-mix(in_oklch,var(--kc-piano)_35%,transparent),transparent_52%)]"
         aria-hidden
       />
 

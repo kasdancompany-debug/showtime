@@ -48,7 +48,7 @@ export function ScreenFullscreenButton({
     <button
       type="button"
       onClick={() => void toggle()}
-      title="Fill the monitor (browser fullscreen)"
+      title="Fill the monitor and enable sound for the show (once per session)"
       className={cn(
         "pointer-events-auto flex items-center gap-2 rounded-md border border-white/20 bg-black/55 px-3 py-2 text-xs font-medium text-white/90 backdrop-blur-sm hover:bg-black/75",
         variant === "floating" && "fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[150]",

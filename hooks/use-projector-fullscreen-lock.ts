@@ -2,11 +2,14 @@
 
 import { useEffect } from "react";
 
+import { clearProjectorArmed } from "@/lib/showtime/projector-arm";
 import {
   clearWantsProjectorFullscreen,
+  markWantsProjectorFullscreen,
   reassertProjectorFullscreenIfWanted,
   wantsProjectorFullscreen,
 } from "@/lib/showtime/projector-fullscreen";
+import { onProjectorFullscreenEntered } from "@/lib/showtime/projector-playback";
 
 /**
  * Keeps `/screen` in browser fullscreen for the whole show once the operator arms it.
@@ -29,7 +32,13 @@ export function useProjectorFullscreenLock(deps: unknown[] = []) {
       }, 80);
     };
 
-    const onFullscreenChange = () => scheduleReassert();
+    const onFullscreenChange = () => {
+      if (document.fullscreenElement) {
+        markWantsProjectorFullscreen();
+        onProjectorFullscreenEntered();
+      }
+      scheduleReassert();
+    };
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") scheduleReassert();
@@ -39,6 +48,7 @@ export function useProjectorFullscreenLock(deps: unknown[] = []) {
       if (e.key !== "Escape") return;
       escDismissedAt = Date.now();
       clearWantsProjectorFullscreen();
+      clearProjectorArmed();
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);

@@ -615,7 +615,7 @@ export function HostRemoteDesk() {
           <CardHeader className="shrink-0 space-y-0.5 px-3 pb-0 pt-0">
             <CardTitle className="text-sm font-semibold text-[var(--kc-cream)]">Projector (changes the screen)</CardTitle>
             <CardDescription className="text-[10px] leading-snug text-[var(--kc-cream-dim)]">
-              Output is sent to <span className="font-mono">/screen</span> in this room. Use <span className="font-mono">Open /screen</span> once on the projector machine; <span className="font-mono">Play on screen</span> starts reels (one tap on the picture per show for sound, then audio follows from the desk).
+              Output is sent to <span className="font-mono">/screen</span> in this room. On the projector, press <span className="font-mono">Fullscreen</span> once before the show (arms sound + stays fullscreen); then <span className="font-mono">Play on screen</span> runs reels with audio.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 px-3 pb-2 pt-0">

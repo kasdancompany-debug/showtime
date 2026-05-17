@@ -1,3 +1,6 @@
+import { clearProjectorArmed } from "@/lib/showtime/projector-arm";
+import { onProjectorFullscreenEntered } from "@/lib/showtime/projector-playback";
+
 const WANTS_FULLSCREEN_KEY = "kasdan.projectorWantsFullscreen";
 
 export function wantsProjectorFullscreen(): boolean {
@@ -37,6 +40,7 @@ export async function enterProjectorFullscreen(): Promise<boolean> {
   if (typeof document === "undefined") return false;
   if (document.fullscreenElement) {
     markWantsProjectorFullscreen();
+    onProjectorFullscreenEntered();
     return true;
   }
   const root = document.documentElement;
@@ -47,6 +51,7 @@ export async function enterProjectorFullscreen(): Promise<boolean> {
   try {
     await req.call(root);
     markWantsProjectorFullscreen();
+    onProjectorFullscreenEntered();
     return true;
   } catch {
     return false;
@@ -56,6 +61,7 @@ export async function enterProjectorFullscreen(): Promise<boolean> {
 /** Operator or Esc — leave fullscreen and stop auto re-entering. */
 export async function exitProjectorFullscreen(): Promise<void> {
   clearWantsProjectorFullscreen();
+  clearProjectorArmed();
   if (typeof document === "undefined") return;
   try {
     if (document.fullscreenElement) await document.exitFullscreen();

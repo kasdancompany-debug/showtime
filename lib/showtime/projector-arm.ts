@@ -19,6 +19,15 @@ export function markProjectorArmed(): void {
   }
 }
 
+export function clearProjectorArmed(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 const PROJECTOR_WINDOW_NAME = "kasdan-projector";
 
 /** Reuse one projector tab per browser profile (focus if already open). */

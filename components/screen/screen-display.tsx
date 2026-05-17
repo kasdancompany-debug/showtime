@@ -243,21 +243,22 @@ export function ScreenDisplay() {
 
   const showLiveVoteCounts = screen.event ? screen.event.screen_show_live_vote_counts !== false : true;
 
-  const tallyFooter = (a: number, b: number, pctA: number, pctB: number, show: boolean) =>
+  const choiceVoteFooter = (votes: number, sharePct: number, show: boolean, tone: "a" | "b") =>
     show ? (
       <div className="w-full border-t border-[color-mix(in_oklch,var(--kc-gold)_15%,transparent)] pt-6">
-        <div className="flex items-baseline justify-between gap-4 font-mono text-[clamp(1.75rem,5vw,3.25rem)] font-light tabular-nums text-[var(--kc-cream)]">
-          <span>{a}</span>
-          <span>{b}</span>
-        </div>
-        <div className="mt-3 flex h-1.5 gap-1 overflow-hidden rounded-full bg-black/50">
+        <p className="font-mono text-[clamp(1.75rem,5vw,3.25rem)] font-light tabular-nums text-[var(--kc-cream)]">
+          {votes}
+        </p>
+        <p className={cn(eyebrow, "mt-2 text-[var(--kc-cream-dim)]")}>{votes === 1 ? "vote" : "votes"}</p>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/50">
           <div
-            className="h-full bg-[color-mix(in_oklch,var(--kc-gold-bright)_55%,var(--kc-piano))] transition-[width] duration-500"
-            style={{ width: `${pctA}%` }}
-          />
-          <div
-            className="h-full bg-[color-mix(in_oklch,var(--kc-champagne)_35%,var(--kc-piano))] transition-[width] duration-500"
-            style={{ width: `${pctB}%` }}
+            className={cn(
+              "h-full transition-[width] duration-500",
+              tone === "a"
+                ? "bg-[color-mix(in_oklch,var(--kc-gold-bright)_55%,var(--kc-piano))]"
+                : "bg-[color-mix(in_oklch,var(--kc-champagne)_35%,var(--kc-piano))]",
+            )}
+            style={{ width: `${sharePct}%` }}
           />
         </div>
       </div>
@@ -298,12 +299,12 @@ export function ScreenDisplay() {
               <CinematicChoiceCard
                 letter="Option A"
                 label={localA}
-                footer={tallyFooter(localTotals.a, localTotals.b, localPctA, localPctB, true)}
+                footer={choiceVoteFooter(localTotals.a, localPctA, true, "a")}
               />
               <CinematicChoiceCard
                 letter="Option B"
                 label={localB}
-                footer={tallyFooter(localTotals.a, localTotals.b, localPctA, localPctB, true)}
+                footer={choiceVoteFooter(localTotals.b, localPctB, true, "b")}
               />
             </div>
           </div>
@@ -475,12 +476,12 @@ export function ScreenDisplay() {
             <CinematicChoiceCard
               letter="Option A"
               label={a}
-              footer={tallyFooter(screen.tallies.a, screen.tallies.b, screen.pctA, screen.pctB, showLiveVoteCounts)}
+              footer={choiceVoteFooter(screen.tallies.a, screen.pctA, showLiveVoteCounts, "a")}
             />
             <CinematicChoiceCard
               letter="Option B"
               label={b}
-              footer={tallyFooter(screen.tallies.a, screen.tallies.b, screen.pctA, screen.pctB, showLiveVoteCounts)}
+              footer={choiceVoteFooter(screen.tallies.b, screen.pctB, showLiveVoteCounts, "b")}
             />
           </div>
           <ArtDecoDivider className="mt-10" />

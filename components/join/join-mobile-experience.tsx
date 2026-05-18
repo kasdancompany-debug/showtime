@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { JoinDebugFooter } from "@/components/join/join-debug-footer";
 import { useJoinMobileVote } from "@/hooks/use-join-mobile-vote";
 import type { VoteChoice } from "@/types";
 import { cn } from "@/lib/utils";
@@ -81,9 +82,24 @@ export function JoinMobileExperience({ eventCode }: Props) {
 
   async function onVote(c: VoteChoice) {
     setDupHint(null);
+    setLocalErr(null);
     const r = await j.castVote(c);
     if (r === "duplicate") setDupHint("You already cast a ballot for this question.");
   }
+
+  const debugFooter = (
+    <JoinDebugFooter
+      roomCode={eventCode}
+      role="audience"
+      participantId={j.participantId}
+      audienceMemberId={j.audienceMemberId}
+      registrationStatus={j.registrationStatus}
+      transport={j.transport}
+      voteEligible={j.voteEligible}
+      voteBlockReason={j.voteBlockReason}
+      joined={Boolean(j.persist?.joined)}
+    />
+  );
 
   const disconnected = !online || j.reconnecting || j.transport === "channel_error" || j.transport === "timed_out";
   const showTransportBanner = j.supabaseConfigured && j.event && disconnected;
@@ -99,6 +115,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
             <div className="kc-gold-rule w-full max-w-[10rem] opacity-90" aria-hidden />
           </div>
         </div>
+        {debugFooter}
       </div>
     );
   }
@@ -119,6 +136,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
         >
           Home
         </Link>
+        {debugFooter}
       </div>
     );
   }
@@ -137,6 +155,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
         >
           Try again
         </Button>
+        {debugFooter}
       </div>
     );
   }
@@ -216,6 +235,11 @@ export function JoinMobileExperience({ eventCode }: Props) {
                     placeholder="e.g. 12"
                   />
                 </div>
+                {j.joinError ? (
+                  <p className="text-center text-[clamp(1rem,3.5vw,1.15rem)] font-medium text-[color-mix(in_oklch,var(--kc-velvet)_35%,var(--kc-cream))]">
+                    {j.joinError}
+                  </p>
+                ) : null}
                 {localErr ? (
                   <p className="text-center text-[clamp(1rem,3.5vw,1.15rem)] font-medium text-[color-mix(in_oklch,var(--kc-velvet)_35%,var(--kc-cream))]">
                     {localErr}
@@ -260,6 +284,14 @@ export function JoinMobileExperience({ eventCode }: Props) {
           {j.uiPhase === "voting" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
               <p className={cn(questionDisplay, "shrink-0 text-center")}>{j.voteNode?.question?.trim() ?? "—"}</p>
+              {!j.voteEligible && j.voteBlockReason ? (
+                <p
+                  className="shrink-0 rounded-md border border-[color-mix(in_oklch,var(--kc-velvet)_40%,transparent)] bg-[color-mix(in_oklch,var(--kc-velvet)_12%,black)] px-4 py-3 text-center text-[clamp(0.95rem,3.2vw,1.1rem)] font-semibold leading-snug text-[var(--kc-cream)]"
+                  role="alert"
+                >
+                  {j.voteBlockReason}
+                </p>
+              ) : null}
               {j.voteError ? (
                 <p className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-semibold text-[color-mix(in_oklch,var(--kc-velvet)_40%,var(--kc-cream))]">
                   {j.voteError}{" "}
@@ -274,7 +306,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
                 <button
                   type="button"
-                  disabled={j.voteSubmitting}
+                  disabled={j.voteSubmitting || !j.voteEligible}
                   className={cn(
                     "flex min-h-[min(30vh,13rem)] flex-col items-center justify-center gap-4 rounded-lg border-2 border-[color-mix(in_oklch,var(--kc-velvet)_55%,var(--kc-gold)_35%)] bg-black/55 px-4 py-8 text-center shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-bright)_12%,transparent)] transition-[border-color,box-shadow,background-color,transform] duration-200 hover:border-[color-mix(in_oklch,var(--kc-velvet)_70%,var(--kc-gold-bright)_40%)] hover:bg-black/65 active:translate-y-px active:bg-[color-mix(in_oklch,var(--kc-velvet)_08%,black)] disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50 sm:min-h-[min(36vh,18rem)]",
                   )}
@@ -289,7 +321,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
                 </button>
                 <button
                   type="button"
-                  disabled={j.voteSubmitting}
+                  disabled={j.voteSubmitting || !j.voteEligible}
                   className={cn(
                     "flex min-h-[min(30vh,13rem)] flex-col items-center justify-center gap-4 rounded-lg border-2 border-[color-mix(in_oklch,var(--kc-gold-bright)_55%,transparent)] bg-black/55 px-4 py-8 text-center shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-bright)_15%,transparent)] transition-[border-color,box-shadow,background-color,transform] duration-200 hover:border-[color-mix(in_oklch,var(--kc-gold-bright)_75%,transparent)] hover:bg-black/65 active:translate-y-px active:bg-[color-mix(in_oklch,var(--kc-gold-bright)_08%,black)] disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50 sm:min-h-[min(36vh,18rem)]",
                   )}
@@ -328,6 +360,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
           ) : null}
         </main>
       </div>
+      {debugFooter}
     </div>
   );
 }

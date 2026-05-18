@@ -1,107 +1,76 @@
+/**
+ * @deprecated Prefer {@link "@/lib/join/participant-identity"} — thin aliases for legacy imports.
+ */
 import type { VoteChoice } from "@/types";
 
-const PREFIX = "showtime.join.v2";
+import {
+  clearAllRoomParticipants,
+  clearRoomParticipant,
+  loadRoomParticipant,
+  markVotePending as markVotePendingInner,
+  markVoteSynced as markVoteSyncedInner,
+  mintParticipantId,
+  participantStorageKey,
+  recordVoteForNode as recordVoteForNodeInner,
+  saveRoomParticipant,
+  type RoomParticipantRuntime,
+} from "@/lib/join/participant-identity";
 
-export function storageKey(eventCode: string) {
-  return `${PREFIX}.${eventCode.toUpperCase()}`;
-}
-
-/** Persisted to localStorage: session identity only (Supabase is source of truth for votes). */
-export interface JoinSessionDisk {
+export type JoinSessionDisk = {
   sessionId: string;
   eventCode: string;
   joined: boolean;
   displayName?: string;
   tableNumber?: string;
-}
+};
 
-/** Runtime join state (votes tracked in memory until synced to Supabase). */
-export interface JoinSessionPersist extends JoinSessionDisk {
-  /** story_node_id → choice (UI / optimistic; not authoritative). */
+export type JoinSessionPersist = JoinSessionDisk & {
   votesByNodeId: Record<string, VoteChoice>;
   voteOutboundStatus?: Record<string, "pending" | "synced">;
+};
+
+export function storageKey(eventCode: string) {
+  return participantStorageKey(eventCode);
 }
 
-function toDisk(p: JoinSessionPersist): JoinSessionDisk {
+export { mintParticipantId as newSessionId };
+
+function toLegacy(p: RoomParticipantRuntime): JoinSessionPersist {
   return {
-    sessionId: p.sessionId,
-    eventCode: p.eventCode.toUpperCase(),
+    sessionId: p.participantId,
+    eventCode: p.roomCode,
     joined: p.joined,
     displayName: p.displayName,
     tableNumber: p.tableNumber,
+    votesByNodeId: p.votesByNodeId,
+    voteOutboundStatus: p.voteOutboundStatus,
   };
 }
 
-export function newSessionId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-}
-
 export function loadJoinSession(eventCode: string): JoinSessionPersist | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(storageKey(eventCode));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<JoinSessionPersist> & Partial<{ audienceMemberId?: string }>;
-    if (parsed.eventCode?.toUpperCase() !== eventCode.toUpperCase()) return null;
-    const mintedSession = !parsed.sessionId;
-    if (!parsed.sessionId) parsed.sessionId = newSessionId();
-    const result: JoinSessionPersist = {
-      sessionId: parsed.sessionId,
-      eventCode: eventCode.toUpperCase(),
-      joined: Boolean(parsed.joined),
-      displayName: typeof parsed.displayName === "string" ? parsed.displayName : "",
-      tableNumber: typeof parsed.tableNumber === "string" ? parsed.tableNumber : "",
-      votesByNodeId: {},
-      voteOutboundStatus: {},
-    };
-    if (mintedSession) {
-      try {
-        window.localStorage.setItem(storageKey(eventCode), JSON.stringify(toDisk(result)));
-      } catch {
-        /* quota */
-      }
-    }
-    return result;
-  } catch {
-    return null;
-  }
+  const p = loadRoomParticipant(eventCode);
+  return p ? toLegacy(p) : null;
 }
 
 export function saveJoinSession(data: JoinSessionPersist): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey(data.eventCode), JSON.stringify(toDisk(data)));
-  } catch {
-    /* quota */
-  }
+  saveRoomParticipant({
+    participantId: data.sessionId,
+    roomCode: data.eventCode.toUpperCase(),
+    role: "audience",
+    joined: data.joined,
+    displayName: data.displayName,
+    tableNumber: data.tableNumber,
+    votesByNodeId: data.votesByNodeId,
+    voteOutboundStatus: data.voteOutboundStatus,
+  });
 }
 
 export function clearJoinSession(eventCode: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(storageKey(eventCode));
-    /* legacy v1 keys */
-    window.localStorage.removeItem(`showtime.join.v1.${eventCode.toUpperCase()}`);
-  } catch {
-    /* ignore */
-  }
+  clearRoomParticipant(eventCode);
 }
 
 export function clearAllJoinSessions(): void {
-  if (typeof window === "undefined") return;
-  try {
-    const drop: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (k?.startsWith(`${PREFIX}.`) || k?.startsWith("showtime.join.v1.")) drop.push(k);
-    }
-    for (const k of drop) window.localStorage.removeItem(k);
-  } catch {
-    /* ignore */
-  }
+  clearAllRoomParticipants();
 }
 
 export function recordVoteForNode(
@@ -110,22 +79,19 @@ export function recordVoteForNode(
   storyNodeId: string,
   choice: VoteChoice,
 ): JoinSessionPersist {
-  const base: JoinSessionPersist =
-    prev ??
-    ({
-      sessionId: newSessionId(),
-      eventCode: eventCode.toUpperCase(),
-      joined: false,
-      displayName: "",
-      tableNumber: "",
-      votesByNodeId: {},
-      voteOutboundStatus: {},
-    } satisfies JoinSessionPersist);
-  return {
-    ...base,
-    votesByNodeId: { ...base.votesByNodeId, [storyNodeId]: choice },
-    voteOutboundStatus: base.voteOutboundStatus ?? {},
-  };
+  const base = prev
+    ? {
+        participantId: prev.sessionId,
+        roomCode: prev.eventCode,
+        role: "audience" as const,
+        joined: prev.joined,
+        displayName: prev.displayName,
+        tableNumber: prev.tableNumber,
+        votesByNodeId: prev.votesByNodeId,
+        voteOutboundStatus: prev.voteOutboundStatus,
+      }
+    : null;
+  return toLegacy(recordVoteForNodeInner(base, eventCode, storyNodeId, choice));
 }
 
 export function markVotePending(
@@ -134,16 +100,31 @@ export function markVotePending(
   storyNodeId: string,
   choice: VoteChoice,
 ): JoinSessionPersist {
-  const withVote = recordVoteForNode(prev, eventCode, storyNodeId, choice);
-  return {
-    ...withVote,
-    voteOutboundStatus: { ...(withVote.voteOutboundStatus ?? {}), [storyNodeId]: "pending" },
-  };
+  const base = prev
+    ? {
+        participantId: prev.sessionId,
+        roomCode: prev.eventCode,
+        role: "audience" as const,
+        joined: prev.joined,
+        displayName: prev.displayName,
+        tableNumber: prev.tableNumber,
+        votesByNodeId: prev.votesByNodeId,
+        voteOutboundStatus: prev.voteOutboundStatus,
+      }
+    : null;
+  return toLegacy(markVotePendingInner(base, eventCode, storyNodeId, choice));
 }
 
 export function markVoteSynced(prev: JoinSessionPersist, storyNodeId: string): JoinSessionPersist {
-  return {
-    ...prev,
-    voteOutboundStatus: { ...(prev.voteOutboundStatus ?? {}), [storyNodeId]: "synced" },
+  const base = {
+    participantId: prev.sessionId,
+    roomCode: prev.eventCode,
+    role: "audience" as const,
+    joined: prev.joined,
+    displayName: prev.displayName,
+    tableNumber: prev.tableNumber,
+    votesByNodeId: prev.votesByNodeId,
+    voteOutboundStatus: prev.voteOutboundStatus,
   };
+  return toLegacy(markVoteSyncedInner(base, storyNodeId));
 }

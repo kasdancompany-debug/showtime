@@ -87,7 +87,7 @@ export function resolveGoLiveCode(codeInput: string, titleDraft: string): string
 }
 
 export function openShowNightSurfaces(code: string): { screenWindow: Window | null } {
-  const hostUrl = `/host?code=${encodeURIComponent(code)}`;
+  const hostUrl = `/operator/${encodeURIComponent(code)}`;
   const screenWindow = window.open("/screen", "showtime-screen", "noopener,noreferrer");
   window.location.assign(hostUrl);
   return { screenWindow };

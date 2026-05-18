@@ -3,20 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  reconcileAudienceParticipant,
+  type AudienceRegistrationStatus,
+} from "@/lib/join/ensure-audience-participant";
+import { joinLifecycleLog } from "@/lib/join/join-lifecycle-log";
+import {
+  clearRoomParticipant,
+  loadRoomParticipant,
+  markVotePending,
+  markVoteSynced,
+  saveRoomParticipant,
+  type RoomParticipantRuntime,
+} from "@/lib/join/participant-identity";
+import {
   tryEnsureAnonymousSession,
   fetchAudienceMemberIdForCurrentUser,
   insertAudienceMember,
   isUniqueViolation,
 } from "@/lib/join/supabase-room";
-import {
-  clearJoinSession,
-  loadJoinSession,
-  markVotePending,
-  markVoteSynced,
-  newSessionId,
-  saveJoinSession,
-  type JoinSessionPersist,
-} from "@/lib/join/session-storage";
 import { attemptHostedVoteDelivery } from "@/lib/join/vote-sync-http";
 import { friendlySupabaseError } from "@/lib/supabase/operator-errors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -36,7 +40,9 @@ export function useJoinMobileVote(eventCodeRaw: string) {
   const supabase = useMemo(() => (typeof window !== "undefined" ? createSupabaseBrowserClient() : null), []);
 
   const [hydrated, setHydrated] = useState(false);
-  const [persist, setPersist] = useState<JoinSessionPersist | null>(null);
+  const [persist, setPersist] = useState<RoomParticipantRuntime | null>(null);
+  const [registrationStatus, setRegistrationStatus] = useState<AudienceRegistrationStatus>("pending");
+  const [audienceMemberId, setAudienceMemberId] = useState<string | null>(null);
   const [event, setEvent] = useState<EventRow | null>(null);
   const [voteNode, setVoteNode] = useState<StoryNodeRow | null>(null);
   const [remoteReady, setRemoteReady] = useState(false);
@@ -44,9 +50,9 @@ export function useJoinMobileVote(eventCodeRaw: string) {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [voteSubmitting, setVoteSubmitting] = useState(false);
   const [voteError, setVoteError] = useState<string | null>(null);
+  const [voteBlockReason, setVoteBlockReason] = useState<string | null>(null);
   const [transport, setTransport] = useState<JoinMobileTransport>("na");
   const [rtNonce, setRtNonce] = useState(0);
-  /** Server-confirmed ballot for current vote node (refresh-safe). */
   const [serverBallot, setServerBallot] = useState<VoteChoice | null>(null);
 
   const eventRef = useRef(event);
@@ -55,15 +61,35 @@ export function useJoinMobileVote(eventCodeRaw: string) {
   const persistRef = useRef(persist);
   persistRef.current = persist;
 
-  const mergePersist = useCallback((next: JoinSessionPersist) => {
-    saveJoinSession(next);
+  const audienceMemberIdRef = useRef(audienceMemberId);
+  audienceMemberIdRef.current = audienceMemberId;
+
+  const mergePersist = useCallback((next: RoomParticipantRuntime) => {
+    saveRoomParticipant(next);
     setPersist(next);
   }, []);
 
   useEffect(() => {
-    setPersist(loadJoinSession(code));
+    const initial = loadRoomParticipant(code);
+    setPersist(initial);
     setHydrated(true);
   }, [code]);
+
+  const runReconcile = useCallback(async () => {
+    const ev = eventRef.current;
+    const result = await reconcileAudienceParticipant(supabase, code, ev?.id ?? null);
+    mergePersist(result.participant);
+    setRegistrationStatus(result.registrationStatus);
+    setAudienceMemberId(result.audienceMemberId);
+    if (result.registrationStatus === "needs_rejoin" && result.resetReason === "missing_db_row") {
+      setJoinError("Your ballot was reset on this device. Enter the room again to vote.");
+    }
+  }, [supabase, code, mergePersist]);
+
+  useEffect(() => {
+    if (!hydrated || !remoteReady) return;
+    void runReconcile();
+  }, [hydrated, remoteReady, event?.id, runReconcile]);
 
   const refreshVoteNode = useCallback(
     async (ev: EventRow | null) => {
@@ -94,14 +120,15 @@ export function useJoinMobileVote(eventCodeRaw: string) {
       !ev?.id ||
       !ev.current_node_id ||
       !p?.joined ||
-      !p.sessionId ||
+      !p.participantId ||
+      !audienceMemberIdRef.current ||
       ev.status !== "voting_open"
     ) {
       setServerBallot(null);
       return;
     }
     try {
-      const b = await getSessionBallotOnNode(supabase, ev.id, ev.current_node_id, p.sessionId);
+      const b = await getSessionBallotOnNode(supabase, ev.id, ev.current_node_id, p.participantId);
       setServerBallot(b);
     } catch {
       setServerBallot(null);
@@ -110,7 +137,15 @@ export function useJoinMobileVote(eventCodeRaw: string) {
 
   useEffect(() => {
     void refreshServerBallot();
-  }, [refreshServerBallot, event?.id, event?.current_node_id, event?.status, persist?.joined, persist?.sessionId]);
+  }, [
+    refreshServerBallot,
+    event?.id,
+    event?.current_node_id,
+    event?.status,
+    persist?.joined,
+    persist?.participantId,
+    audienceMemberId,
+  ]);
 
   useEffect(() => {
     if (!supabase) {
@@ -204,6 +239,37 @@ export function useJoinMobileVote(eventCodeRaw: string) {
 
   const votedThisRound = Boolean(voteOpen && serverBallot !== null);
 
+  const voteEligible = Boolean(
+    voteOpen &&
+      persist?.joined &&
+      persist.participantId &&
+      audienceMemberId &&
+      registrationStatus === "registered" &&
+      !voteSubmitting &&
+      serverBallot === null,
+  );
+
+  const computeVoteBlockReason = useCallback((): string | null => {
+    if (!voteOpen) return "Voting is not open on this ballot.";
+    if (!persist?.joined) return "Enter the room before you can vote.";
+    if (!persist.participantId) return "This device has no audience participant id for this room.";
+    if (registrationStatus === "needs_rejoin") return "Re-enter the room — your audience registration was lost.";
+    if (registrationStatus !== "registered" || !audienceMemberId) {
+      return "You are not registered as an audience member for this room yet.";
+    }
+    if (voteSubmitting) return "Your ballot is being submitted.";
+    if (serverBallot !== null) return "You already voted on this question.";
+    return null;
+  }, [voteOpen, persist, registrationStatus, audienceMemberId, voteSubmitting, serverBallot]);
+
+  useEffect(() => {
+    if (!voteOpen) {
+      setVoteBlockReason(null);
+      return;
+    }
+    setVoteBlockReason(computeVoteBlockReason());
+  }, [voteOpen, computeVoteBlockReason]);
+
   const winnerLabel = useMemo(() => {
     if (!event?.winner) return null;
     if (!voteNode) return event.winner === "A" ? "Option A" : "Option B";
@@ -214,9 +280,11 @@ export function useJoinMobileVote(eventCodeRaw: string) {
   const joinRoom = useCallback(
     async (displayName: string, tableNumber: string) => {
       if (!supabase || !event) throw new Error("Not ready to join.");
-      const p = persistRef.current;
-      const sid = p?.sessionId ?? newSessionId();
+      const p = persistRef.current ?? loadRoomParticipant(code);
+      const participantId = p?.participantId;
+      if (!participantId) throw new Error("Could not create a participant id for this room.");
       setJoinError(null);
+
       const name = displayName.trim();
       const table = tableNumber.trim();
       if (!name) throw new Error("Please enter your name.");
@@ -226,77 +294,115 @@ export function useJoinMobileVote(eventCodeRaw: string) {
         setJoinError(anon.message);
         throw new Error(anon.message);
       }
+
+      let memberId: string;
       try {
-        await insertAudienceMember(supabase, {
+        memberId = await insertAudienceMember(supabase, {
           eventId: event.id,
           displayName: name,
           tableNumber: table || null,
-          sessionId: sid,
+          sessionId: participantId,
         });
       } catch (e) {
         if (isUniqueViolation(e)) {
-          const existing = await fetchAudienceMemberIdForCurrentUser(supabase, event.id, sid);
+          const existing = await fetchAudienceMemberIdForCurrentUser(supabase, event.id, participantId);
           if (!existing) throw e instanceof Error ? e : new Error("Could not join");
+          memberId = existing;
         } else {
           throw e instanceof Error ? e : new Error("Could not join");
         }
       }
 
-      mergePersist({
-        sessionId: sid,
-        eventCode: code,
+      joinLifecycleLog("created participant in database", {
+        roomCode: code,
+        participantId,
+        audienceMemberId: memberId,
+      });
+
+      const next: RoomParticipantRuntime = {
+        participantId,
+        roomCode: code,
+        role: "audience",
         displayName: name,
         tableNumber: table,
         joined: true,
+        audienceMemberId: memberId,
         votesByNodeId: p?.votesByNodeId ?? {},
         voteOutboundStatus: p?.voteOutboundStatus ?? {},
-      });
+      };
+      mergePersist(next);
+      setAudienceMemberId(memberId);
+      setRegistrationStatus("registered");
+      joinLifecycleLog("ready to vote", { roomCode: code, participantId, audienceMemberId: memberId });
     },
     [supabase, event, mergePersist, code],
   );
 
   const castVote = useCallback(
     async (choice: VoteChoice): Promise<"ok" | "duplicate" | "blocked" | "queued"> => {
-      const p = persistRef.current;
-      if (!supabase || !event?.current_node_id || !p?.joined || !p.sessionId || voteSubmitting) return "blocked";
-      if (serverBallot !== null) return "duplicate";
+      const block = computeVoteBlockReason();
+      if (block) {
+        setVoteError(block);
+        setVoteBlockReason(block);
+        joinLifecycleLog("vote blocked", { roomCode: code, reason: block });
+        return "blocked";
+      }
 
-      const nodeId = event.current_node_id;
+      const p = persistRef.current;
+      const ev = eventRef.current;
+      if (!supabase || !ev?.current_node_id || !p?.participantId) {
+        const msg = "Cannot vote — reconnect and enter the room again.";
+        setVoteError(msg);
+        return "blocked";
+      }
+
+      const nodeId = ev.current_node_id;
       setVoteSubmitting(true);
       setVoteError(null);
       try {
         const cur = persistRef.current;
-        if (!cur) return "blocked";
+        if (!cur) {
+          const msg = "Cannot vote — no participant on this device.";
+          setVoteError(msg);
+          return "blocked";
+        }
         mergePersist(markVotePending(cur, code, nodeId, choice));
         const r = await attemptHostedVoteDelivery(supabase, {
-          eventId: event.id,
+          eventId: ev.id,
           storyNodeId: nodeId,
-          sessionId: cur.sessionId,
+          sessionId: cur.participantId,
           choice,
         });
-        const latest = loadJoinSession(code);
+        const latest = loadRoomParticipant(code);
         if (r === "ok" || r === "duplicate") {
           if (latest) mergePersist(markVoteSynced(latest, nodeId));
           await refreshServerBallot();
           return r === "duplicate" ? "duplicate" : "ok";
         }
+        const msg = "Vote could not reach the room. Check your connection and try again.";
+        setVoteError(msg);
         return "queued";
       } catch (e) {
-        setVoteError(friendlySupabaseError(e));
+        const msg = friendlySupabaseError(e);
+        setVoteError(msg);
         return "blocked";
       } finally {
         setVoteSubmitting(false);
       }
     },
-    [supabase, event, code, mergePersist, voteSubmitting, serverBallot, refreshServerBallot],
+    [computeVoteBlockReason, supabase, code, mergePersist, refreshServerBallot],
   );
 
   const leaveRoom = useCallback(() => {
-    clearJoinSession(code);
-    setPersist(null);
+    clearRoomParticipant(code);
+    const fresh = loadRoomParticipant(code);
+    setPersist(fresh);
     setServerBallot(null);
     setJoinError(null);
     setVoteError(null);
+    setVoteBlockReason(null);
+    setAudienceMemberId(null);
+    setRegistrationStatus("fresh");
   }, [code]);
 
   const reconnecting = Boolean(
@@ -313,7 +419,7 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     if (loadError && !event) return "error" as const;
     if (!event) return "no_event" as const;
     if (!acceptingJoins) return "lobby_closed" as const;
-    if (!persist?.joined) return "form" as const;
+    if (!persist?.joined || registrationStatus === "needs_rejoin") return "form" as const;
     if (event.status === "winner_revealed" && event.winner && event.current_node_id) return "results" as const;
     if (voteOpen && !votedThisRound) return "voting" as const;
     if (voteOpen && votedThisRound) return "vote_received" as const;
@@ -327,6 +433,7 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     event,
     acceptingJoins,
     persist?.joined,
+    registrationStatus,
     voteOpen,
     votedThisRound,
   ]);
@@ -342,6 +449,12 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     event,
     voteNode,
     persist,
+    participantId: persist?.participantId ?? null,
+    audienceMemberId,
+    registrationStatus,
+    role: "audience" as const,
+    voteEligible,
+    voteBlockReason,
     acceptingJoins,
     voteOpen,
     votedThisRound,

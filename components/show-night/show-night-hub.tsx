@@ -8,6 +8,7 @@ import {
   Copy,
   Loader2,
   Monitor,
+  Film,
   Play,
   Settings2,
 } from "lucide-react";
@@ -173,13 +174,27 @@ export function ShowNightHub() {
         <p className="text-muted-foreground leading-relaxed">
           One button: load your show, open the operator desk and projector, arm the opening beat. No Supabase dashboard during the show.
         </p>
-        <p className="text-sm">
-          <Link href="/experiences" className="font-medium text-primary underline-offset-4 hover:underline">
-            Movie Experiences
-          </Link>
-          <span className="text-muted-foreground"> — save timelines and launch a room with a generated code.</span>
-        </p>
       </header>
+
+      <Card className="border-[color-mix(in_oklch,var(--kc-gold-line)_35%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_40%,black)] shadow-md ring-1 ring-[color-mix(in_oklch,var(--kc-gold-bright)_12%,transparent)]">
+        <CardHeader className="pb-2 text-center sm:text-left">
+          <CardTitle className="flex items-center justify-center gap-2 font-heading text-xl sm:justify-start">
+            <Film className="size-5 text-primary" aria-hidden />
+            Movie Experiences
+          </CardTitle>
+          <CardDescription>
+            Build saved interactive movies — scenes, votes, and branches — then launch a live room with a generated code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 sm:flex-row">
+          <Link href="/experiences" className={buttonVariants({ variant: "default", className: "w-full sm:w-auto" })}>
+            Open experiences
+          </Link>
+          <Link href="/experiences/new" className={buttonVariants({ variant: "outline", className: "w-full sm:w-auto" })}>
+            New experience
+          </Link>
+        </CardContent>
+      </Card>
 
       <Card className="border-primary/25 shadow-lg ring-1 ring-primary/10">
         <CardHeader className="pb-2 text-center sm:text-left">
@@ -313,6 +328,10 @@ export function ShowNightHub() {
       )}
 
       <div className="flex flex-wrap justify-center gap-2 border-t border-border/60 pt-4 sm:justify-start">
+        <Link href="/experiences" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <Film className="mr-1 size-4" />
+          Movie Experiences
+        </Link>
         <Link href="/admin/story" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           <Settings2 className="mr-1 size-4" />
           Edit show

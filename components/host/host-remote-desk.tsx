@@ -17,6 +17,8 @@ import { getJoinUrl } from "@/lib/join/get-join-url";
 import { openOrFocusProjector } from "@/lib/showtime/projector-arm";
 import { showtimeSyncModeLabel } from "@/lib/showtime/sync-mode";
 import { hasStoryVideoUrl } from "@/lib/showtime/video-url";
+import { getExperienceById } from "@/lib/supabase/experiences";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { StoryNodeRow } from "@/lib/supabase/event-room";
 import type { ShowtimeEventStatus } from "@/lib/supabase/database.types";
 import type { RealtimeProbeStatus } from "@/hooks/use-event-room-realtime-probe";
@@ -157,6 +159,23 @@ export function HostRemoteDesk() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [screenTestNotice, setScreenTestNotice] = useState<string | null>(null);
   const [rehearsalChecked, setRehearsalChecked] = useState<Record<string, boolean>>({});
+  const [experienceTitle, setExperienceTitle] = useState<string | null>(null);
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  useEffect(() => {
+    const expId = op.event?.experience_id;
+    if (!supabase || !expId) {
+      setExperienceTitle(null);
+      return;
+    }
+    let cancelled = false;
+    void getExperienceById(supabase, expId).then((row) => {
+      if (!cancelled) setExperienceTitle(row?.title ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, op.event?.experience_id]);
 
   const joinUrl =
     joinBase.joinBaseUrl && op.event?.code ? getJoinUrl(op.event.code, joinBase.joinBaseUrl) : "";
@@ -406,6 +425,22 @@ export function HostRemoteDesk() {
         <div className="grid gap-4 md:grid-cols-12 md:gap-3">
           <div className="md:col-span-4 md:border-r md:border-[var(--host-divider)] md:pr-4">
             <p className={statLabel}>Event code</p>
+            {experienceTitle ? (
+              <p className="mt-2 text-sm text-[var(--kc-champagne)]">
+                Experience: <span className="text-[var(--kc-cream)]">{experienceTitle}</span>
+                {op.event?.experience_id ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={`/experiences/${op.event.experience_id}/edit`}
+                      className="text-[10px] uppercase tracking-wider text-[var(--kc-gold-bright)] hover:underline"
+                    >
+                      Edit
+                    </Link>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
             <div className="mt-1 flex flex-wrap items-end gap-2">
               <p className="font-mono text-2xl font-bold tracking-wide text-[var(--kc-gold-bright)] tabular-nums md:text-3xl">
                 {displayCode || "— — — —"}

@@ -1,0 +1,152 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Film, Loader2, Plus, Rocket } from "lucide-react";
+
+import { ExperienceShell } from "@/components/experiences/experience-shell";
+import { ExperienceStatusPill } from "@/components/experiences/status-pill";
+import { buttonVariants } from "@/components/ui/button";
+import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
+import { listExperiences, type ExperienceRow } from "@/lib/supabase/experiences";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
+
+export function ExperiencesDashboard() {
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const [items, setItems] = useState<ExperienceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!supabase) {
+      setError("Supabase is not configured.");
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const anon = await tryEnsureAnonymousSession(supabase);
+      if (!anon.ok) throw new Error(anon.message);
+      const rows = await listExperiences(supabase);
+      setItems(rows);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load experiences.");
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <ExperienceShell
+      title="Movie Experiences"
+      subtitle="Save interactive nights as templates. Launch one into a live room when you are ready to run the show."
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-[var(--kc-champagne)]">
+          {items.length === 0 && !loading ? "No experiences yet." : `${items.length} saved`}
+        </p>
+        <Link href="/experiences/new" className={buttonVariants({ variant: "default" })}>
+          <Plus className="size-4" aria-hidden />
+          New experience
+        </Link>
+      </div>
+
+      {error ? (
+        <p className="rounded-sm border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-200">{error}</p>
+      ) : null}
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-20 text-[var(--kc-champagne)]">
+          <Loader2 className="size-5 animate-spin" aria-hidden />
+          Loading…
+        </div>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {items.map((exp) => (
+            <li key={exp.id}>
+              <article
+                className={cn(
+                  "group flex h-full flex-col overflow-hidden rounded-sm border bg-[color-mix(in_oklch,var(--kc-panel)_55%,black)]",
+                  "border-[color-mix(in_oklch,var(--kc-gold-line)_35%,transparent)]",
+                  "shadow-[inset_0_1px_0_color-mix(in_oklch,var(--kc-gold-bright)_10%,transparent)]",
+                  "transition-colors hover:border-[color-mix(in_oklch,var(--kc-gold-bright)_40%,transparent)]",
+                )}
+              >
+                <div className="relative aspect-[2.4/1] bg-black/50">
+                  {exp.poster_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={exp.poster_url} alt="" className="size-full object-cover opacity-90" />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-[var(--kc-champagne)]/40">
+                      <Film className="size-10" aria-hidden />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--kc-piano)] via-transparent to-transparent" />
+                  <div className="absolute left-3 top-3">
+                    <ExperienceStatusPill status={exp.status} />
+                  </div>
+                </div>
+                <div className="flex flex-1 flex-col gap-3 p-4">
+                  <div>
+                    <h2 className="font-serif text-xl font-light text-[var(--kc-cream)]">{exp.title}</h2>
+                    <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--kc-champagne)]">
+                      {exp.slug}
+                    </p>
+                  </div>
+                  {exp.description ? (
+                    <p className="line-clamp-2 text-sm leading-relaxed text-[var(--kc-champagne)]">{exp.description}</p>
+                  ) : (
+                    <p className="text-sm italic text-[var(--kc-champagne)]/50">No description</p>
+                  )}
+                  {exp.estimated_runtime_minutes ? (
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--kc-champagne)]/70">
+                      ~{exp.estimated_runtime_minutes} min
+                    </p>
+                  ) : null}
+                  <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                    <Link
+                      href={`/experiences/${exp.id}/edit`}
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    >
+                      Edit
+                    </Link>
+                    <Link
+                      href={`/experiences/${exp.id}/launch`}
+                      className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5")}
+                    >
+                      <Rocket className="size-3.5" aria-hidden />
+                      Launch
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!loading && items.length === 0 && !error ? (
+        <div className="rounded-sm border border-dashed border-[color-mix(in_oklch,var(--kc-gold-line)_30%,transparent)] px-6 py-12 text-center">
+          <p className="text-sm text-[var(--kc-champagne)]">Create your first interactive movie experience.</p>
+          <Link href="/experiences/new" className={cn(buttonVariants(), "mt-4 inline-flex")}>
+            <Plus className="size-4" aria-hidden />
+            New experience
+          </Link>
+        </div>
+      ) : null}
+
+      <div className="border-t border-[color-mix(in_oklch,var(--kc-gold-line)_20%,transparent)] pt-6">
+        <Link href="/show" className="text-xs text-[var(--kc-champagne)] hover:text-[var(--kc-gold-bright)]">
+          ← Back to show night
+        </Link>
+      </div>
+    </ExperienceShell>
+  );
+}
+

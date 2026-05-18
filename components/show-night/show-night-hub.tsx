@@ -173,6 +173,12 @@ export function ShowNightHub() {
         <p className="text-muted-foreground leading-relaxed">
           One button: load your show, open the operator desk and projector, arm the opening beat. No Supabase dashboard during the show.
         </p>
+        <p className="text-sm">
+          <Link href="/experiences" className="font-medium text-primary underline-offset-4 hover:underline">
+            Movie Experiences
+          </Link>
+          <span className="text-muted-foreground"> — save timelines and launch a room with a generated code.</span>
+        </p>
       </header>
 
       <Card className="border-primary/25 shadow-lg ring-1 ring-primary/10">

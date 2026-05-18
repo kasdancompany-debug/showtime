@@ -34,6 +34,12 @@ export type VoteAb = "A" | "B";
 
 export type PlaybackCmd = "play" | "pause" | "restart" | "load";
 
+export type ExperienceStatus = "draft" | "ready" | "archived";
+
+export type ExperienceResultMode = "majority" | "host_override";
+
+export type LiveRoomStatus = "lobby" | "live" | "voting" | "paused" | "ended";
+
 export interface Database {
 
   public: {
@@ -72,6 +78,8 @@ export interface Database {
 
           screen_idle_poster_url: string | null;
 
+          experience_id: string | null;
+
           created_at: string;
 
           updated_at: string;
@@ -107,6 +115,8 @@ export interface Database {
           video_library?: Json;
 
           screen_idle_poster_url?: string | null;
+
+          experience_id?: string | null;
 
           created_at?: string;
 
@@ -144,6 +154,8 @@ export interface Database {
 
           screen_idle_poster_url?: string | null;
 
+          experience_id?: string | null;
+
           created_at?: string;
 
           updated_at?: string;
@@ -152,6 +164,157 @@ export interface Database {
 
         Relationships: [];
 
+      };
+
+      experiences: {
+        Row: {
+          id: string;
+          title: string;
+          slug: string;
+          description: string;
+          poster_url: string | null;
+          estimated_runtime_minutes: number | null;
+          status: ExperienceStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          slug: string;
+          description?: string;
+          poster_url?: string | null;
+          estimated_runtime_minutes?: number | null;
+          status?: ExperienceStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          slug?: string;
+          description?: string;
+          poster_url?: string | null;
+          estimated_runtime_minutes?: number | null;
+          status?: ExperienceStatus;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      experience_scenes: {
+        Row: {
+          id: string;
+          experience_id: string;
+          order_index: number;
+          title: string;
+          description: string;
+          media_url: string | null;
+          duration_seconds: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          experience_id: string;
+          order_index?: number;
+          title: string;
+          description?: string;
+          media_url?: string | null;
+          duration_seconds?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          experience_id?: string;
+          order_index?: number;
+          title?: string;
+          description?: string;
+          media_url?: string | null;
+          duration_seconds?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      experience_vote_moments: {
+        Row: {
+          id: string;
+          experience_id: string;
+          scene_id: string | null;
+          order_index: number;
+          question: string;
+          choice_a: string;
+          choice_b: string;
+          countdown_seconds: number;
+          result_mode: ExperienceResultMode;
+          branch_a: string | null;
+          branch_b: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          experience_id: string;
+          scene_id?: string | null;
+          order_index?: number;
+          question: string;
+          choice_a: string;
+          choice_b: string;
+          countdown_seconds?: number;
+          result_mode?: ExperienceResultMode;
+          branch_a?: string | null;
+          branch_b?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          experience_id?: string;
+          scene_id?: string | null;
+          order_index?: number;
+          question?: string;
+          choice_a?: string;
+          choice_b?: string;
+          countdown_seconds?: number;
+          result_mode?: ExperienceResultMode;
+          branch_a?: string | null;
+          branch_b?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      live_rooms: {
+        Row: {
+          id: string;
+          room_code: string;
+          experience_id: string;
+          event_id: string;
+          status: LiveRoomStatus;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          room_code: string;
+          experience_id: string;
+          event_id: string;
+          status?: LiveRoomStatus;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          room_code?: string;
+          experience_id?: string;
+          event_id?: string;
+          status?: LiveRoomStatus;
+          created_at?: string;
+        };
+        Relationships: [];
       };
 
       story_nodes: {
@@ -407,6 +570,12 @@ export interface Database {
       vote_ab: VoteAb;
 
       playback_cmd: PlaybackCmd;
+
+      experience_status: ExperienceStatus;
+
+      experience_result_mode: ExperienceResultMode;
+
+      live_room_status: LiveRoomStatus;
 
     };
 

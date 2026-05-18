@@ -25,7 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       {
         ok: false,
         error:
-          "Launch needs SUPABASE_SERVICE_ROLE_KEY on the server. Add it to .env.local and restart the dev server.",
+          "Launch needs SUPABASE_SERVICE_ROLE_KEY on the server (Vercel → Project → Settings → Environment Variables). Trying your browser session instead…",
         useClientFallback: true,
       },
       { status: 503 },

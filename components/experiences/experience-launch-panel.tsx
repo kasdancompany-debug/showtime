@@ -15,6 +15,7 @@ import { useJoinBaseUrl } from "@/hooks/use-join-base-url";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
 import { openShowNightSurfaces } from "@/lib/showtime/go-live";
 import {
+  formatLaunchError,
   launchExperienceViaApi,
   launchExperienceViaClient,
 } from "@/lib/showtime/launch-experience-client";
@@ -81,10 +82,14 @@ export function ExperienceLaunchPanel({ experienceId }: Props) {
       if (api.ok && api.roomCode) {
         code = api.roomCode;
       } else if (api.useClientFallback) {
-        const client = await launchExperienceViaClient(supabase, experienceId, preferred || undefined);
-        code = client.roomCode;
+        try {
+          const launched = await launchExperienceViaClient(supabase, experienceId, preferred || undefined);
+          code = launched.roomCode;
+        } catch (clientErr) {
+          throw new Error(formatLaunchError(api, clientErr));
+        }
       } else {
-        throw new Error(api.error ?? "Launch failed.");
+        throw new Error(formatLaunchError(api));
       }
 
       setLaunchedCode(code);

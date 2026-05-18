@@ -113,22 +113,30 @@ export function materializeExperienceToBranchNodes(
 
   const nodes = repackSortOrder(draft);
   const keyByIndex = nodes.map((n) => n.node_key);
+  const validKeys = new Set(keyByIndex);
+
+  const resolveBranch = (raw: string, fallback: string): string => {
+    const k = raw.trim();
+    if (k && validKeys.has(k)) return k;
+    return fallback;
+  };
 
   return nodes.map((n, i) => {
-    const nextKey = keyByIndex[i + 1];
+    const nextKey = keyByIndex[i + 1] ?? "";
     const hasVote =
       Boolean(n.question.trim()) &&
       Boolean(n.option_a_label.trim()) &&
       Boolean(n.option_b_label.trim());
 
     if (hasVote) {
-      const a = n.option_a_next_node_key.trim() || nextKey || "";
-      const b = n.option_b_next_node_key.trim() || nextKey || "";
+      const a = resolveBranch(n.option_a_next_node_key, nextKey);
+      const b = resolveBranch(n.option_b_next_node_key, nextKey);
+      const soleBeat = nodes.length === 1;
       return {
         ...n,
         option_a_next_node_key: a,
         option_b_next_node_key: b,
-        is_ending: !a && !b,
+        is_ending: soleBeat ? false : !a && !b,
       };
     }
 

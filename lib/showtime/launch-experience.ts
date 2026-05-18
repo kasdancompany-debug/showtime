@@ -4,7 +4,7 @@ import { armShowRoomAtOpening } from "@/lib/showtime/arm-show-room";
 import { generateRoomCode } from "@/lib/showtime/generate-room-code";
 import { materializeExperienceToBranchNodes } from "@/lib/showtime/materialize-experience";
 import type { Database } from "@/lib/supabase/database.types";
-import { createEmptyShow } from "@/lib/supabase/create-empty-show";
+import { ensureEventForRoom } from "@/lib/showtime/ensure-event-for-room";
 import {
   getExperienceFull,
   getLiveRoomByCode,
@@ -61,10 +61,7 @@ export async function launchExperienceToLiveRoom(
   const roomCode = await pickUniqueRoomCode(client, options?.roomCode);
   const title = full.title.trim() || `Experience ${roomCode}`;
 
-  let event = await getEventByCode(client, roomCode);
-  if (!event) {
-    event = await createEmptyShow(client, { code: roomCode, title });
-  }
+  const event = await ensureEventForRoom(client, roomCode, title);
 
   await replaceStoryNodesForEvent(client, event.id, nodes);
   await updateEvent(client, event.id, {

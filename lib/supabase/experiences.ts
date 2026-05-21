@@ -141,6 +141,13 @@ export async function deleteExperience(client: SupabaseClient<Database>, id: str
   if (error) throw error;
 }
 
+/** Remove launched room links first (FK RESTRICT), then the experience and its scenes/votes. */
+export async function deleteExperienceFully(client: SupabaseClient<Database>, id: string): Promise<void> {
+  const { error: roomErr } = await client.from("live_rooms").delete().eq("experience_id", id);
+  if (roomErr) throw roomErr;
+  await deleteExperience(client, id);
+}
+
 export type ExperienceSceneInput = {
   id?: string;
   orderIndex: number;
@@ -220,6 +227,19 @@ export async function getLiveRoomByCode(
 ): Promise<LiveRoomRow | null> {
   const code = roomCode.trim().toUpperCase();
   const { data, error } = await client.from("live_rooms").select("*").eq("room_code", code).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function getExperienceByRehearsalEventId(
+  client: SupabaseClient<Database>,
+  eventId: string,
+): Promise<ExperienceRow | null> {
+  const { data, error } = await client
+    .from("experiences")
+    .select("*")
+    .eq("rehearsal_event_id", eventId)
+    .maybeSingle();
   if (error) throw error;
   return data;
 }

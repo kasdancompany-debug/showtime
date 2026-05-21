@@ -356,7 +356,7 @@ export function ScreenHostedVideo({
           setFaultKind("autoplay_blocked");
           setFaultCopy({
             headline: "Browser blocked playback",
-            hint: "Use the Fullscreen control (bottom-right) once, then Play on screen from the operator desk.",
+            hint: "Tap Fullscreen (bottom-right) once — the picture will play.",
           });
           reportFault("Autoplay / play() blocked (NotAllowedError)");
           return true;
@@ -444,7 +444,7 @@ export function ScreenHostedVideo({
             setFaultKind("load_failed");
             setFaultCopy({
               headline: "Video failed to load",
-              hint: "Check the reel URL in Show builder and that this screen can reach the file.",
+              hint: "This reel could not be reached from the big screen. It may still be loading.",
             });
             reportFault("Video element error (unknown code)");
             return;
@@ -466,7 +466,7 @@ export function ScreenHostedVideo({
               <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-neutral-300">{src}</p>
               {operatorVideoRef.trim() && operatorVideoRef.trim() !== src ? (
                 <>
-                  <p className="pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Story beat source</p>
+                  <p className="pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Cue</p>
                   <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-neutral-400">{operatorVideoRef.trim()}</p>
                 </>
               ) : null}

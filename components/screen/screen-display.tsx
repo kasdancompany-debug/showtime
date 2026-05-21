@@ -289,8 +289,7 @@ export function ScreenDisplay() {
         <ArtDecoDivider className="mt-10" />
         {!eventStarted ? (
           <p className={cn(bodyLarge, "mt-12 max-w-2xl")}>
-            Waiting for the operator. Open <span className="font-mono text-[var(--kc-gold-bright)]">/host</span> on this machine
-            to begin rehearsal.
+            The curtain is still down. The picture will begin when this room is called to life.
           </p>
         ) : localPhaseResolved === "open" ? (
           <div className="mt-12 flex w-full max-w-[min(94vw,72rem)] flex-col items-stretch gap-[clamp(1.25rem,4vh,2.5rem)]">
@@ -312,7 +311,7 @@ export function ScreenDisplay() {
           <div className="mt-14 flex max-w-3xl flex-col items-center gap-6">
             <p className={eyebrow}>Ballots are sealed</p>
             <p className={cn(serifDisplay, "text-[var(--kc-cream)]")}>Voting is closed</p>
-            <p className={cn(bodyLarge, "max-w-xl opacity-90")}>The operator will reveal the audience choice.</p>
+            <p className={cn(bodyLarge, "max-w-xl opacity-90")}>The house will reveal what you chose together.</p>
           </div>
         ) : localPhaseResolved === "reveal" && localWinner ? (
           <div className="mt-12 flex w-full max-w-[min(96vw,52rem)] flex-col items-center gap-10 md:mt-14">
@@ -346,7 +345,7 @@ export function ScreenDisplay() {
           </div>
         ) : (
           <p className={cn(bodyLarge, "mt-12 max-w-2xl opacity-90")}>
-            Rehearsal picture. When the operator loads a reel, playback may appear full screen.
+            A quiet moment before the next reel. When the story moves, the picture fills the screen.
           </p>
         )}
       </ProjectionCard>
@@ -360,7 +359,7 @@ export function ScreenDisplay() {
           {!online ? "This display is offline" : "This room could not be loaded"}
         </p>
         <p className={cn(bodyLarge, "mt-6 max-w-2xl text-[color-mix(in_oklch,var(--kc-cream)_75%,var(--kc-velvet))]")}>
-          {screen.error ?? "Check the network cable or Wi‑Fi, then reload. The operator desk must stay connected."}
+          {screen.error ?? "Check the network cable or Wi‑Fi, then reload. This screen must stay connected to the room."}
         </p>
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>
@@ -390,7 +389,7 @@ export function ScreenDisplay() {
         </Link>
         <p className={cn(serifDisplay, "mt-10 text-[var(--kc-cream)]")}>Waiting for show</p>
         <p className={cn(bodyLarge, "mt-8 max-w-2xl opacity-90")}>
-          This surface will wake when an operator loads a room. No event is bound to this link yet.
+          The big screen wakes when a show begins in this room. Nothing is playing here yet.
         </p>
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>
@@ -401,7 +400,7 @@ export function ScreenDisplay() {
         <ArtDecoDivider className="mb-10" />
         <p className={cn(eyebrow, "text-[color-mix(in_oklch,var(--kc-velvet)_50%,var(--kc-champagne))]")}>Projection check</p>
         <p className={cn(serifDisplay, "mt-8")}>No reel on this beat</p>
-        <p className={cn(bodyLarge, "mt-6 max-w-2xl")}>Assign a video in Show builder, then cue load again from the operator desk.</p>
+        <p className={cn(bodyLarge, "mt-6 max-w-2xl")}>The next reel is being cued for the screen.</p>
         <p className="mt-10 font-mono text-[clamp(1rem,2.5vw,1.5rem)] tracking-[0.28em] text-[var(--kc-gold-bright)]">{code}</p>
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>
@@ -416,7 +415,9 @@ export function ScreenDisplay() {
         <ArtDecoDivider className="mb-10" />
         <p className={eyebrow}>The story continues</p>
         <p className={cn(serifHero, "mt-8 max-w-[90vw] text-balance")}>{q}</p>
-        <p className={cn(bodyLarge, "mt-6 max-w-2xl opacity-90")}>The house will choose a path. Voting opens when the operator calls it.</p>
+        <p className={cn(bodyLarge, "mt-6 max-w-2xl opacity-90")}>
+          Your phones will shape what happens next. Voting opens in a moment — stay with us.
+        </p>
         <div className="mt-12 grid w-full max-w-[min(94vw,56rem)] grid-cols-1 gap-6 md:grid-cols-2">
           <CinematicChoiceCard letter="Option A" label={a} />
           <CinematicChoiceCard letter="Option B" label={b} />
@@ -523,7 +524,7 @@ export function ScreenDisplay() {
             </div>
           </div>
         ) : (
-          <p className={cn(bodyLarge, "mt-8 max-w-2xl opacity-90")}>Results remain hidden until the operator reveals the winner.</p>
+          <p className={cn(bodyLarge, "mt-8 max-w-2xl opacity-90")}>The reveal is coming — stay with us.</p>
         )}
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>
@@ -592,7 +593,7 @@ export function ScreenDisplay() {
         <ArtDecoDivider className="mb-10" />
         <p className={cn(eyebrow, "text-[color-mix(in_oklch,var(--kc-velvet)_45%,var(--kc-champagne))]")}>House notice</p>
         <p className={cn(serifDisplay, "mt-8")}>Stand by</p>
-        <p className={cn(bodyLarge, "mt-6 max-w-2xl")}>This room is in an unexpected state. Use the operator desk to continue.</p>
+        <p className={cn(bodyLarge, "mt-6 max-w-2xl")}>A brief pause in the story. We’ll continue shortly.</p>
         <p className="mt-8 font-mono text-[var(--kc-gold-bright)]">{code}</p>
         <ArtDecoDivider className="mt-12" />
       </ProjectionCard>

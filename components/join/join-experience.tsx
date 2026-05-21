@@ -190,7 +190,7 @@ export function JoinExperience({ eventCode }: Props) {
                   <HelpBulletedList
                     items={[
                       "Tap Try again after Wi‑Fi or cellular stabilizes.",
-                      "Ask the host to confirm the site is deployed and Supabase is reachable from the public internet.",
+                      "If the whole room is stuck, wait a moment — the show may still be connecting.",
                       "Try a different browser or disable strict content blockers for this domain.",
                     ]}
                   />
@@ -199,7 +199,7 @@ export function JoinExperience({ eventCode }: Props) {
                   <HelpBulletedList
                     items={[
                       "Offline or captive portal (hotel Wi‑Fi login not completed).",
-                      "Temporary outage on the host or Supabase region.",
+                      "Temporary outage on the venue network or our live service.",
                       "Wrong join URL or event code in the link you opened.",
                     ]}
                   />
@@ -244,8 +244,8 @@ export function JoinExperience({ eventCode }: Props) {
           subtitle={
             <>
               There is no active event for code{" "}
-              <span className="font-mono text-foreground">{eventCode.toUpperCase()}</span>. Ask the host for the current
-              QR link or double-check the event code.
+              <span className="font-mono text-foreground">{eventCode.toUpperCase()}</span>. Check your ticket or the big
+              screen for the current code, or scan the QR again.
             </>
           }
           actions={
@@ -269,7 +269,7 @@ export function JoinExperience({ eventCode }: Props) {
   if (room.joinsClosed && room.joinsClosedReason) {
     const copy =
       room.joinsClosedReason === "setup"
-        ? "The host has not opened this screening yet. Take your seat — the lobby will unlock when the show is ready."
+        ? "The house has not opened the doors yet. Take your seat — the lobby will unlock when the show is ready."
         : "This screening has ended. Thanks for joining.";
     return (
       <JoinShell>
@@ -319,7 +319,7 @@ export function JoinExperience({ eventCode }: Props) {
                     items={[
                       "Tap Reconnect, wait a few seconds, and stay on this tab.",
                       "Move closer to Wi‑Fi or switch to cellular if the venue network is congested.",
-                      "Ask the host to reload `/host` and confirm Supabase is healthy if everyone drops at once.",
+                      "If everyone in the room drops at once, wait a moment and try again — the show will reconnect.",
                     ]}
                   />
                 }
@@ -371,8 +371,8 @@ export function JoinExperience({ eventCode }: Props) {
           subtitle={
             <span className="block space-y-4 text-left sm:text-center">
               <span className="block text-base font-normal leading-relaxed text-[var(--kc-cream)]/95 md:text-lg">
-                The host needs to turn on the live database connection for this deployment. Until then, votes from this
-                link won’t reach other guests or the big screen.
+                Live sync isn’t ready on this site yet. Until it is, votes from this link won’t reach other guests or the
+                big screen.
               </span>
               <p className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left text-sm leading-relaxed text-muted-foreground">
                 If variables are already set in Vercel, run a <strong className="text-[var(--kc-cream)]">new Production deploy</strong>{" "}
@@ -380,12 +380,12 @@ export function JoinExperience({ eventCode }: Props) {
                 <strong className="text-[var(--kc-cream)]">build</strong> time, not when you open this page.
               </p>
               <InlineHelpPanel
-                summary="For the host: Supabase keys in production"
+                summary="For venue staff: live database setup"
                 whatThisMeans={
                   <p>
                     This deployment’s JavaScript was built without both public Supabase settings, so phones cannot open a
                     shared Realtime room. There is no separate documentation site here — everything needed is in your
-                    host and Supabase dashboards.
+                    venue deployment and Supabase dashboards.
                   </p>
                 }
                 howToFix={
@@ -393,7 +393,7 @@ export function JoinExperience({ eventCode }: Props) {
                     items={[
                       "In Vercel (or your host): Environment Variables → Production → add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` exactly as named.",
                       "In Supabase (separate browser tab): Project Settings → API → copy Project URL and anon public key.",
-                      "Redeploy Production, wait for green, then hard-refresh `/host` and this join page.",
+                      "Redeploy Production, wait for green, then hard-refresh the backstage console and this join page.",
                     ]}
                   />
                 }
@@ -408,18 +408,18 @@ export function JoinExperience({ eventCode }: Props) {
                 }
               />
               <InlineHelpPanel
-                summary="For the host: join URL & QR (NEXT_PUBLIC_JOIN_ORIGIN)"
+                summary="For venue staff: join URL & QR"
                 whatThisMeans={
                   <p>
                     QR codes and links use a fixed public base URL. If it is missing or points at localhost, guests open
-                    a host their phone cannot reach.
+                    a URL their phone cannot reach.
                   </p>
                 }
                 howToFix={
                   <HelpBulletedList
                     items={[
                       "Set `NEXT_PUBLIC_JOIN_ORIGIN` to this site’s public HTTPS URL with no trailing slash.",
-                      "Redeploy Production, re-open `/host`, and re-share or re-print QR from the operator desk.",
+                      "Redeploy Production, reopen the backstage console, and re-share or re-print the join QR.",
                     ]}
                   />
                 }
@@ -465,8 +465,8 @@ export function JoinExperience({ eventCode }: Props) {
         <div className="fixed left-4 right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 rounded-2xl border border-sky-500/35 bg-sky-950/90 px-4 py-3.5 text-base leading-snug text-sky-50 shadow-lg backdrop-blur sm:px-5">
           <p className="font-semibold text-sky-50">Live sync is off on this site</p>
           <p className="mt-2 leading-relaxed text-sky-100/95">
-            You skipped the full notice — only this browser is in demo mode. The host still needs Supabase env vars on
-            the server for real audiences.
+            You skipped the full notice — only this browser is in demo mode. The venue still needs live sync configured
+            for a real audience night.
           </p>
         </div>
       )}
@@ -1014,7 +1014,7 @@ function WaitingScreen({
       ? "You’re offline — we’ll pick up the moment you reconnect."
       : connection === "reconnecting"
         ? "Reconnecting to the live room…"
-        : "You’re in sync — we’ll open the ballot when the host does.";
+        : "You’re in sync — we’ll open the ballot when voting begins.";
 
   return (
     <motion.section
@@ -1068,7 +1068,7 @@ function WaitingScreen({
         Waiting for the next decision…
       </p>
       <p className="mx-auto mt-4 max-w-[min(34ch,92vw)] text-pretty text-[clamp(0.98rem,3.9vw,1.15rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-        Keep this page open. When the host opens the vote, your ballot appears automatically — nothing else to tap.
+        Keep this page open. When voting opens, your ballot appears automatically — nothing else to tap.
       </p>
       <p
         className={cn(
@@ -1515,7 +1515,7 @@ function VoteReceivedScreen({
               Try sending now
             </GoldButton>
             <p className="mt-3 text-[0.72rem] leading-snug text-amber-200/75">
-              If this never clears before the poll ends, tell the host how you voted — your phone already recorded it.
+              If this never clears before the poll ends, your choice is still saved on this phone.
             </p>
           </div>
         ) : (
@@ -1536,7 +1536,7 @@ function VoteReceivedScreen({
       </div>
 
       <p className="mx-auto mt-4 max-w-[min(34ch,94vw)] text-pretty text-[clamp(0.95rem,3.9vw,1.1rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-        Waiting with everyone else — the host seals the ballot when the room is ready.
+        Waiting with everyone else — the house seals the ballot when the moment is right.
       </p>
 
       {voteOpen && secondsLeft !== null ? (
@@ -1616,7 +1616,7 @@ function ResultsScreen({
         <>
           <h2 className="mt-6 font-heading text-[clamp(1.75rem,7vw,2.75rem)] font-normal leading-tight">Split decision</h2>
           <p className="mx-auto mt-5 max-w-[min(36ch,94vw)] text-pretty text-[clamp(1.05rem,4vw,1.25rem)] leading-relaxed text-[var(--kc-cream-dim)]">
-            The tally tied — the host picks the thread on the big screen.
+            The tally tied — the house will choose the thread on the big screen.
           </p>
           <p className="mx-auto mt-8 max-w-[min(34ch,94vw)] text-pretty text-[clamp(1rem,3.9vw,1.15rem)] font-medium leading-snug text-[var(--kc-champagne)]/95">
             Every vote held tension — your choice changes everything.

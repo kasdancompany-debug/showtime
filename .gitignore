@@ -42,3 +42,5 @@ public/videos/IMG_5133.MOV
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

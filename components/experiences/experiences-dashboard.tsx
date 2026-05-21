@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Film, Loader2, Plus, Rocket } from "lucide-react";
+import { Film, Loader2, Plus, Rocket, Trash2 } from "lucide-react";
 
 import { ExperienceShell } from "@/components/experiences/experience-shell";
 import { ExperienceStatusPill } from "@/components/experiences/status-pill";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
-import { listExperiences, type ExperienceRow } from "@/lib/supabase/experiences";
+import { deleteExperienceFully, listExperiences, type ExperienceRow } from "@/lib/supabase/experiences";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,8 @@ export function ExperiencesDashboard() {
   const [items, setItems] = useState<ExperienceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) {
@@ -41,6 +43,26 @@ export function ExperiencesDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const handleDelete = useCallback(
+    async (exp: ExperienceRow) => {
+      if (!supabase) return;
+      setDeletingId(exp.id);
+      setError(null);
+      try {
+        const anon = await tryEnsureAnonymousSession(supabase);
+        if (!anon.ok) throw new Error(anon.message);
+        await deleteExperienceFully(supabase, exp.id);
+        setItems((prev) => prev.filter((row) => row.id !== exp.id));
+        setConfirmDeleteId(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not delete this experience.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [supabase],
+  );
 
   return (
     <ExperienceShell
@@ -91,6 +113,19 @@ export function ExperiencesDashboard() {
                   <div className="absolute left-3 top-3">
                     <ExperienceStatusPill status={exp.status} />
                   </div>
+                  {confirmDeleteId !== exp.id ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-2 top-2 h-8 w-8 p-0 text-[var(--kc-champagne)]/70 hover:bg-red-950/50 hover:text-red-200"
+                      disabled={deletingId !== null}
+                      aria-label={`Delete ${exp.title}`}
+                      onClick={() => setConfirmDeleteId(exp.id)}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  ) : null}
                 </div>
                 <div className="flex flex-1 flex-col gap-3 p-4">
                   <div>
@@ -109,21 +144,67 @@ export function ExperiencesDashboard() {
                       ~{exp.estimated_runtime_minutes} min
                     </p>
                   ) : null}
-                  <div className="mt-auto flex flex-wrap gap-2 pt-2">
-                    <Link
-                      href={`/experiences/${exp.id}/edit`}
-                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                  {confirmDeleteId === exp.id ? (
+                    <div
+                      className="mt-auto rounded-sm border border-red-500/35 bg-red-950/25 px-3 py-3"
+                      role="alertdialog"
+                      aria-labelledby={`delete-title-${exp.id}`}
                     >
-                      Open builder
-                    </Link>
-                    <Link
-                      href={`/experiences/${exp.id}/launch`}
-                      className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5")}
-                    >
-                      <Rocket className="size-3.5" aria-hidden />
-                      Launch
-                    </Link>
-                  </div>
+                      <p
+                        id={`delete-title-${exp.id}`}
+                        className="text-sm font-medium text-red-100"
+                      >
+                        Delete &ldquo;{exp.title}&rdquo;?
+                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-red-200/80">
+                        This removes the saved experience and any venue launch link tied to it. Live event
+                        history on the big screen is not erased.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === exp.id}
+                          onClick={() => void handleDelete(exp)}
+                        >
+                          {deletingId === exp.id ? (
+                            <>
+                              <Loader2 className="mr-1 size-3.5 animate-spin" aria-hidden />
+                              Deleting…
+                            </>
+                          ) : (
+                            "Delete permanently"
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={deletingId === exp.id}
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                      <Link
+                        href={`/experiences/${exp.id}/edit`}
+                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                      >
+                        Open builder
+                      </Link>
+                      <Link
+                        href={`/experiences/${exp.id}/launch`}
+                        className={cn(buttonVariants({ variant: "default", size: "sm" }), "gap-1.5")}
+                      >
+                        <Rocket className="size-3.5" aria-hidden />
+                        Launch
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </article>
             </li>

@@ -95,7 +95,7 @@ export function useScreenSupabaseDisplay() {
       const code = eventCode.trim().toUpperCase();
       if (code.length < 3) {
         setEvent(null);
-        setError("Missing event code. Open this page from the operator desk or add ?code= to the URL.");
+        setError("Missing room code. Use the link or QR for this screening, or add ?code= to the URL.");
         return;
       }
       const ev = await getEventByCode(supabase, code);

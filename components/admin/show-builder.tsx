@@ -67,7 +67,8 @@ import {
   loadExperienceBuilderState,
   saveExperienceBuilderSnapshot,
 } from "@/lib/supabase/experience-builder-snapshot";
-import type { ExperienceRow } from "@/lib/supabase/experiences";
+import { getExperienceForEvent, type ExperienceRow } from "@/lib/supabase/experiences";
+import { syncEventBuilderToExperience } from "@/lib/showtime/sync-event-to-experience";
 import type { ExperienceStatus } from "@/lib/supabase/database.types";
 import { syncExperienceRehearsalEvent } from "@/lib/showtime/sync-experience-rehearsal";
 import { replaceStoryNodesForEvent } from "@/lib/supabase/story-admin";
@@ -183,6 +184,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [linkedExperience, setLinkedExperience] = useState<ExperienceRow | null>(null);
   const [pageOrigin, setPageOrigin] = useState("https://origin.invalid");
   const [libraryTestId, setLibraryTestId] = useState<string | null>(null);
   const [libraryTestStatus, setLibraryTestStatus] = useState<"idle" | "checking" | "ok" | "fail">("idle");
@@ -299,7 +301,15 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
       setVideoLibrary(lib);
       setNodes(attachVideoAssetIds(packed, lib));
       setSelectedKey(packed[0]?.node_key ?? "");
+      setEventTitleDraft(ev.title);
+      setScreenIdlePosterDraft(ev.screen_idle_poster_url?.trim() ?? "");
       syncSupabaseEventMeta({ eventId: ev.id, code: ev.code, title: ev.title });
+      try {
+        const linked = await getExperienceForEvent(supabase, ev.id);
+        setLinkedExperience(linked);
+      } catch {
+        setLinkedExperience(null);
+      }
       try {
         writeStoredOperatorCode(ev.code);
       } catch {
@@ -621,6 +631,13 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
         setLastSavedAt(Date.now());
       } else if (event) {
         await replaceStoryNodesForEvent(supabase, event.id, repackSortOrder(nodes), { videoLibrary });
+        const synced = await syncEventBuilderToExperience(supabase, event, nodes, videoLibrary, {
+          title: eventTitleDraft.trim() || event.title,
+          posterUrl: screenIdlePosterDraft.trim() || null,
+        });
+        setLinkedExperience(synced);
+        const ev = await getEventByCode(supabase, event.code);
+        if (ev) setEvent(ev);
         setLastSavedAt(Date.now());
       }
       const { errors, warnings } = validateBranchStory(nodes);
@@ -646,6 +663,8 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
     experienceDescDraft,
     experiencePosterDraft,
     experienceStatusDraft,
+    eventTitleDraft,
+    screenIdlePosterDraft,
   ]);
 
   const handleTestRehearsal = useCallback(async () => {
@@ -1021,7 +1040,8 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
               </>
             ) : (
               <>
-                Host / operator is the person at <span className="font-mono text-foreground">/host</span> during the show; you are drawing the map they follow.
+                <span className="font-semibold text-foreground">Save show</span> also saves this graph to{" "}
+                <span className="font-semibold text-foreground">Movie Experiences</span> for launch and rehearsal.
               </>
             )}
           </InlineHint>
@@ -1065,6 +1085,18 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
               <Link href="/show" className={buttonVariants({ variant: "default", size: "sm" })}>
                 <Radio className="mr-1 size-4" />
                 Go live
+              </Link>
+              <Link
+                href={linkedExperience ? `/experiences/${linkedExperience.id}/edit` : "/experiences"}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+                title={
+                  linkedExperience
+                    ? "Open this show in Movie Experiences"
+                    : "Save the show once to add it to Movie Experiences"
+                }
+              >
+                <Film className="mr-1 size-4" />
+                Experiences
               </Link>
               <Link href="/admin" className={buttonVariants({ variant: "ghost", size: "sm" })}>
                 ← Admin
@@ -1873,9 +1905,19 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     </ul>
                   ) : null}
                   {lastSavedAt ? (
-                    <p className="text-muted-foreground flex items-center gap-1 text-xs">
-                      <CheckCircle2 className="size-3.5 text-emerald-600" />
-                      Saved {new Date(lastSavedAt).toLocaleString()}
+                    <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle2 className="size-3.5 text-emerald-600" />
+                        Saved {new Date(lastSavedAt).toLocaleString()}
+                      </span>
+                      {!isExperienceMode && linkedExperience ? (
+                        <Link
+                          href={`/experiences/${linkedExperience.id}/edit`}
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          Also in Movie Experiences
+                        </Link>
+                      ) : null}
                     </p>
                   ) : null}
                   <details className="rounded-lg border bg-card">

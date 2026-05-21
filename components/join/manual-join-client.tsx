@@ -20,7 +20,7 @@ export function ManualJoinClient() {
   function submit() {
     const normalized = normalizeJoinEventCode(code);
     if (normalized.length < 3) {
-      setErr("Enter at least 3 characters (the code from the host).");
+      setErr("Enter at least 3 characters (the code on your ticket or the big screen).");
       return;
     }
     setErr(null);
@@ -41,7 +41,7 @@ export function ManualJoinClient() {
           <Ticket className="size-7 text-primary" aria-hidden />
           <div>
             <h1 className="text-xl font-semibold">Join</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Enter the event code from the operator desk.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Enter the code on your ticket or the big screen.</p>
           </div>
         </div>
 

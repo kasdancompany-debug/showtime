@@ -4,6 +4,7 @@ import { DM_Sans, Geist_Mono, Instrument_Serif, Libre_Baskerville } from "next/f
 import "./globals.css";
 
 import { KasdanHollywoodTheme } from "@/components/kasdan/kasdan-hollywood-theme";
+import { SHOWTIME_CANONICAL_ORIGIN } from "@/lib/showtime/canonical-origin";
 
 /** Display / hero titles — elegant editorial serif */
 const instrumentSerif = Instrument_Serif({
@@ -30,6 +31,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SHOWTIME_CANONICAL_ORIGIN),
   title: {
     default: "Showtime",
     template: "%s · Showtime",

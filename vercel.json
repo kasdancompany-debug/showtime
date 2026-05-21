@@ -1,0 +1,28 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.kasdanshowtime.com" }],
+      "destination": "https://kasdanshowtime.com/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "showtime-7s49.vercel.app" }],
+      "destination": "https://kasdanshowtime.com/:path*",
+      "permanent": true
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ]
+}

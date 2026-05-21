@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { armShowRoomAtOpening } from "@/lib/showtime/arm-show-room";
 import { generateRoomCode } from "@/lib/showtime/generate-room-code";
-import { materializeExperienceToBranchNodes } from "@/lib/showtime/materialize-experience";
+import { resolveExperienceBranchNodes } from "@/lib/supabase/experience-builder-snapshot";
 import type { Database } from "@/lib/supabase/database.types";
 import { ensureEventForRoom } from "@/lib/showtime/ensure-event-for-room";
 import {
@@ -53,9 +53,12 @@ export async function launchExperienceToLiveRoom(
     throw new Error("Archived experiences cannot be launched. Set status to draft or ready first.");
   }
 
-  const nodes = materializeExperienceToBranchNodes(full.scenes, full.voteMoments);
+  const nodes = resolveExperienceBranchNodes(full, {
+    scenes: full.scenes,
+    voteMoments: full.voteMoments,
+  });
   if (nodes.length === 0) {
-    throw new Error("Add at least one scene or vote moment before launching.");
+    throw new Error("Add at least one beat in the show builder before launching.");
   }
 
   const roomCode = await pickUniqueRoomCode(client, options?.roomCode);

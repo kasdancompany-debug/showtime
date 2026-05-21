@@ -26,6 +26,7 @@ import {
 import { StudioBadge } from "@/components/kasdan";
 import { ReelLibraryUploadZone } from "@/components/admin/reel-library-upload-zone";
 import { ScreenPosterUploadZone } from "@/components/admin/screen-poster-upload-zone";
+import { ShowBuilderExperiencePanel } from "@/components/admin/show-builder-experience-panel";
 import { HowShowtimeWorksPanel, InlineHint } from "@/components/admin/show-builder-onboarding";
 import { formatBuilderError } from "@/lib/admin/format-builder-error";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -61,6 +62,14 @@ import {
 } from "@/lib/showtime/video-library";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { getEventByCode, listStoryNodesForEvent, updateEvent, type EventRow } from "@/lib/supabase/event-room";
+import {
+  experienceRehearsalCode,
+  loadExperienceBuilderState,
+  saveExperienceBuilderSnapshot,
+} from "@/lib/supabase/experience-builder-snapshot";
+import type { ExperienceRow } from "@/lib/supabase/experiences";
+import type { ExperienceStatus } from "@/lib/supabase/database.types";
+import { syncExperienceRehearsalEvent } from "@/lib/showtime/sync-experience-rehearsal";
 import { replaceStoryNodesForEvent } from "@/lib/supabase/story-admin";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { useJoinBaseUrl } from "@/hooks/use-join-base-url";
@@ -141,11 +150,21 @@ function screenOkStorageKey(eventId: string) {
   return `showtime.builder.screenOk:${eventId}`;
 }
 
-export function ShowBuilder() {
+export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
+  const isExperienceMode = Boolean(experienceId);
   const router = useRouter();
   const joinBase = useJoinBaseUrl();
   const syncSupabaseEventMeta = useMockEventStore((s) => s.syncSupabaseEventMeta);
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+
+  const [experience, setExperience] = useState<ExperienceRow | null>(null);
+  const [experienceTitleDraft, setExperienceTitleDraft] = useState("");
+  const [experienceDescDraft, setExperienceDescDraft] = useState("");
+  const [experiencePosterDraft, setExperiencePosterDraft] = useState("");
+  const [experienceStatusDraft, setExperienceStatusDraft] = useState<ExperienceStatus>("draft");
+  const [experienceMetaBusy, setExperienceMetaBusy] = useState(false);
+  const [experienceMetaError, setExperienceMetaError] = useState<string | null>(null);
+  const [rehearsalBusy, setRehearsalBusy] = useState(false);
 
   const [eventCodeInput, setEventCodeInput] = useState("");
   const [newShowTitle, setNewShowTitle] = useState("");
@@ -180,6 +199,9 @@ export function ShowBuilder() {
   const [devPanelOpen, setDevPanelOpen] = useState(false);
   const [screenTestAck, setScreenTestAck] = useState(false);
   const [joinUrlCopied, setJoinUrlCopied] = useState(false);
+
+  const canEdit = isExperienceMode ? Boolean(experience) : Boolean(event);
+  const activeEvent = event;
 
   const joinUrlForEvent = useMemo(() => {
     if (!event || !joinBase.joinBaseUrl) return "";
@@ -336,12 +358,71 @@ export function ShowBuilder() {
 
   const autoLoadAttemptedRef = useRef(false);
   useEffect(() => {
-    if (autoLoadAttemptedRef.current || !supabase || event) return;
+    if (isExperienceMode || autoLoadAttemptedRef.current || !supabase || event) return;
     const stored = readStoredOperatorCode();
     if (stored.length < 3) return;
     autoLoadAttemptedRef.current = true;
     void handleLoad(stored);
-  }, [supabase, event, handleLoad]);
+  }, [supabase, event, handleLoad, isExperienceMode]);
+
+  const hydrateFromExperience = useCallback(
+    async (id: string) => {
+      if (!supabase) return;
+      setLoadErrorFriendly(null);
+      setLoadErrorTechnical(null);
+      setBusy(true);
+      try {
+        const anon = await tryEnsureAnonymousSession(supabase);
+        if (!anon.ok) {
+          setLoadErrorFriendly(anon.message);
+          setLoadErrorTechnical(anon.technical ?? "");
+          return;
+        }
+        const state = await loadExperienceBuilderState(supabase, id);
+        if (!state) {
+          setLoadErrorFriendly("Experience not found.");
+          return;
+        }
+        setExperience(state.experience);
+        setExperienceTitleDraft(state.experience.title);
+        setExperienceDescDraft(state.experience.description);
+        setExperiencePosterDraft(state.experience.poster_url?.trim() ?? "");
+        setExperienceStatusDraft(state.experience.status);
+        setVideoLibrary(state.videoLibrary);
+        setNodes(state.nodes);
+        setSelectedKey(state.nodes[0]?.node_key ?? "");
+        if (state.rehearsalEvent) {
+          setEvent(state.rehearsalEvent);
+          setEventTitleDraft(state.rehearsalEvent.title);
+          setScreenIdlePosterDraft(state.rehearsalEvent.screen_idle_poster_url?.trim() ?? "");
+          syncSupabaseEventMeta({
+            eventId: state.rehearsalEvent.id,
+            code: state.rehearsalEvent.code,
+            title: state.rehearsalEvent.title,
+          });
+          try {
+            writeStoredOperatorCode(state.rehearsalEvent.code);
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (e) {
+        const { friendly, technical } = formatBuilderError(e);
+        setLoadErrorFriendly(friendly);
+        setLoadErrorTechnical(technical);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [supabase, syncSupabaseEventMeta],
+  );
+
+  const experienceLoadRef = useRef(false);
+  useEffect(() => {
+    if (!isExperienceMode || !experienceId || !supabase || experienceLoadRef.current) return;
+    experienceLoadRef.current = true;
+    void hydrateFromExperience(experienceId);
+  }, [isExperienceMode, experienceId, supabase, hydrateFromExperience]);
 
   const handleCreateShow = useCallback(async () => {
     setCreateErrorFriendly(null);
@@ -503,7 +584,16 @@ export function ShowBuilder() {
   const handleSave = useCallback(async () => {
     setSaveErrorFriendly(null);
     setSaveErrorTechnical(null);
-    if (!supabase || !event) {
+    if (!supabase) {
+      setSaveErrorFriendly("Supabase is not configured.");
+      return;
+    }
+    if (isExperienceMode) {
+      if (!experience || !experienceId) {
+        setSaveErrorFriendly("Experience is still loading.");
+        return;
+      }
+    } else if (!event) {
       setSaveErrorFriendly("Load or create a show before saving.");
       return;
     }
@@ -520,8 +610,19 @@ export function ShowBuilder() {
         setSaveErrorTechnical(anon.technical ?? "");
         return;
       }
-      await replaceStoryNodesForEvent(supabase, event.id, repackSortOrder(nodes), { videoLibrary });
-      setLastSavedAt(Date.now());
+      if (isExperienceMode && experienceId) {
+        const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
+          title: experienceTitleDraft,
+          description: experienceDescDraft,
+          posterUrl: experiencePosterDraft.trim() || null,
+          status: experienceStatusDraft,
+        });
+        setExperience(updated);
+        setLastSavedAt(Date.now());
+      } else if (event) {
+        await replaceStoryNodesForEvent(supabase, event.id, repackSortOrder(nodes), { videoLibrary });
+        setLastSavedAt(Date.now());
+      }
       const { errors, warnings } = validateBranchStory(nodes);
       setValidationErrors(errors);
       setValidationWarnings(warnings);
@@ -532,7 +633,103 @@ export function ShowBuilder() {
     } finally {
       setBusy(false);
     }
-  }, [supabase, event, nodes, videoLibrary, runValidate]);
+  }, [
+    supabase,
+    event,
+    experience,
+    experienceId,
+    isExperienceMode,
+    nodes,
+    videoLibrary,
+    runValidate,
+    experienceTitleDraft,
+    experienceDescDraft,
+    experiencePosterDraft,
+    experienceStatusDraft,
+  ]);
+
+  const handleTestRehearsal = useCallback(async () => {
+    if (!supabase || !experience || !experienceId) return;
+    setRehearsalBusy(true);
+    setSaveErrorFriendly(null);
+    setSaveErrorTechnical(null);
+    try {
+      const anon = await tryEnsureAnonymousSession(supabase);
+      if (!anon.ok) {
+        setSaveErrorFriendly(anon.message);
+        return;
+      }
+      const ok = runValidate();
+      if (!ok) {
+        setSaveErrorFriendly("Fix blocking issues in “Check show” before rehearsing.");
+        return;
+      }
+      await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
+        title: experienceTitleDraft,
+        description: experienceDescDraft,
+        posterUrl: experiencePosterDraft.trim() || null,
+        status: experienceStatusDraft,
+      });
+      const synced = await syncExperienceRehearsalEvent(supabase, experience, nodes, videoLibrary);
+      setEvent(synced.event);
+      setEventTitleDraft(synced.event.title);
+      setScreenIdlePosterDraft(synced.event.screen_idle_poster_url?.trim() ?? "");
+      syncSupabaseEventMeta({ eventId: synced.event.id, code: synced.event.code, title: synced.event.title });
+      writeStoredOperatorCode(synced.code);
+      setLastSavedAt(Date.now());
+    } catch (e) {
+      const { friendly, technical } = formatBuilderError(e);
+      setSaveErrorFriendly(friendly);
+      setSaveErrorTechnical(technical);
+    } finally {
+      setRehearsalBusy(false);
+    }
+  }, [
+    supabase,
+    experience,
+    experienceId,
+    nodes,
+    videoLibrary,
+    runValidate,
+    experienceTitleDraft,
+    experienceDescDraft,
+    experiencePosterDraft,
+    experienceStatusDraft,
+    syncSupabaseEventMeta,
+  ]);
+
+  const handleSaveExperienceMeta = useCallback(async () => {
+    if (!supabase || !experienceId) return;
+    setExperienceMetaError(null);
+    setExperienceMetaBusy(true);
+    try {
+      const anon = await tryEnsureAnonymousSession(supabase);
+      if (!anon.ok) {
+        setExperienceMetaError(anon.message);
+        return;
+      }
+      const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
+        title: experienceTitleDraft,
+        description: experienceDescDraft,
+        posterUrl: experiencePosterDraft.trim() || null,
+        status: experienceStatusDraft,
+      });
+      setExperience(updated);
+    } catch (e) {
+      setExperienceMetaError(formatBuilderError(e).friendly);
+    } finally {
+      setExperienceMetaBusy(false);
+    }
+  }, [
+    supabase,
+    experienceId,
+    nodes,
+    videoLibrary,
+    experienceTitleDraft,
+    experienceDescDraft,
+    experiencePosterDraft,
+    experienceStatusDraft,
+  ]);
 
   const handleLoadIntoHost = useCallback(() => {
     if (!event) return;
@@ -577,16 +774,17 @@ export function ShowBuilder() {
   }, []);
 
   const handleExportJson = useCallback(() => {
-    if (!event || typeof window === "undefined") return;
+    if (!canEdit || typeof window === "undefined") return;
     const json = exportBranchStoryDocument(nodes, videoLibrary);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `show-backup-${event.code.toLowerCase()}.json`;
+    const slug = isExperienceMode && experience ? experience.slug : event?.code.toLowerCase() ?? "show";
+    a.download = `show-backup-${slug}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [event, nodes, videoLibrary]);
+  }, [canEdit, isExperienceMode, experience, event, nodes, videoLibrary]);
 
   const handleImportJson = useCallback(() => {
     setImportJsonError(null);
@@ -608,7 +806,7 @@ export function ShowBuilder() {
   }, []);
 
   const addSampleHostedReel = useCallback(() => {
-    if (!event) return;
+    if (!canEdit) return;
     setVideoLibrary((prev) => {
       const empty = prev.find((e) => !e.url.trim());
       if (empty) {
@@ -807,45 +1005,76 @@ export function ShowBuilder() {
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-card/80 px-4 py-3 sm:px-5 md:px-6">
         <StudioBadge />
         <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">Show builder</h1>
+          <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            {isExperienceMode ? "Experience builder" : "Show builder"}
+          </h1>
           <p className="text-muted-foreground text-xs sm:text-sm">
-            Kasdan Co. Showtime — cue your live cinema night, reels, branches, and booth notes in one place.
+            {isExperienceMode
+              ? "Same editor as Edit show — save your graph here, rehearse at home, launch the identical beats at the venue."
+              : "Kasdan Co. Showtime — cue your live cinema night, reels, branches, and booth notes in one place."}
           </p>
           <InlineHint className="mt-1.5">
-            Host / operator is the person at <span className="font-mono text-foreground">/host</span> during the show; you are drawing the map they follow.
+            {isExperienceMode ? (
+              <>
+                Use <span className="font-semibold text-foreground">Save experience</span> then{" "}
+                <span className="font-semibold text-foreground">Test on this laptop</span> before doors open.
+              </>
+            ) : (
+              <>
+                Host / operator is the person at <span className="font-mono text-foreground">/host</span> during the show; you are drawing the map they follow.
+              </>
+            )}
           </InlineHint>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" size="sm" onClick={handleSave} disabled={!event || busy}>
+          <Button type="button" size="sm" onClick={handleSave} disabled={!canEdit || busy}>
             <Save className="mr-1 size-4" />
-            Save show
+            {isExperienceMode ? "Save experience" : "Save show"}
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={runValidate} disabled={!event || busy}>
+          <Button type="button" variant="outline" size="sm" onClick={runValidate} disabled={!canEdit || busy}>
             <ListChecks className="mr-1 size-4" />
             Check show
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleLoadIntoHost}
-            disabled={!event}
-            title="Opens the live operator desk (/host) for this show code."
-          >
-            <Cable className="mr-1 size-4" />
-            Operator desk
-          </Button>
-          <Link href="/show" className={buttonVariants({ variant: "default", size: "sm" })}>
-            <Radio className="mr-1 size-4" />
-            Go live
-          </Link>
-          <Link href="/admin" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-            ← Admin
-          </Link>
+          {isExperienceMode && experienceId ? (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={() => void handleTestRehearsal()} disabled={!canEdit || rehearsalBusy || busy}>
+                <Play className="mr-1 size-4" />
+                Test on laptop
+              </Button>
+              <Link href={`/experiences/${experienceId}/launch`} className={buttonVariants({ variant: "default", size: "sm" })}>
+                <Radio className="mr-1 size-4" />
+                Launch at venue
+              </Link>
+              <Link href="/experiences" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                ← Experiences
+              </Link>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleLoadIntoHost}
+                disabled={!activeEvent}
+                title="Opens the live operator desk (/host) for this show code."
+              >
+                <Cable className="mr-1 size-4" />
+                Operator desk
+              </Button>
+              <Link href="/show" className={buttonVariants({ variant: "default", size: "sm" })}>
+                <Radio className="mr-1 size-4" />
+                Go live
+              </Link>
+              <Link href="/admin" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                ← Admin
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
-      {!event && !busy ? (
+      {!canEdit && !busy && !isExperienceMode ? (
         <div className="shrink-0 border-b border-primary/25 bg-primary/10 px-4 py-4 sm:px-6">
           <div className="mx-auto flex max-w-3xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
@@ -905,6 +1134,45 @@ export function ShowBuilder() {
             <div className="space-y-4 p-4">
               <HowShowtimeWorksPanel />
 
+              {isExperienceMode && experience && experienceId ? (
+                <ShowBuilderExperiencePanel
+                  experience={experience}
+                  experienceId={experienceId}
+                  beatCount={sortedNodes.length}
+                  rehearsalEvent={activeEvent}
+                  rehearsalCode={experienceRehearsalCode(experience.slug)}
+                  joinBaseUrl={joinBase.joinBaseUrl}
+                  titleDraft={experienceTitleDraft}
+                  descriptionDraft={experienceDescDraft}
+                  posterDraft={experiencePosterDraft}
+                  statusDraft={experienceStatusDraft}
+                  metaBusy={experienceMetaBusy}
+                  metaError={experienceMetaError}
+                  rehearsalBusy={rehearsalBusy}
+                  joinUrlCopied={joinUrlCopied}
+                  onTitleChange={setExperienceTitleDraft}
+                  onDescriptionChange={setExperienceDescDraft}
+                  onPosterChange={setExperiencePosterDraft}
+                  onStatusChange={setExperienceStatusDraft}
+                  onSaveMeta={() => void handleSaveExperienceMeta()}
+                  onPosterApply={(url) => {
+                    setExperiencePosterDraft(url ?? "");
+                    void handleSaveExperienceMeta();
+                  }}
+                  onTestRehearsal={() => void handleTestRehearsal()}
+                  onCopyJoin={() => {
+                    const code = experienceRehearsalCode(experience.slug);
+                    const url = joinBase.joinBaseUrl ? getJoinUrl(code, joinBase.joinBaseUrl) : "";
+                    if (!url) return;
+                    void navigator.clipboard.writeText(url).then(() => {
+                      setJoinUrlCopied(true);
+                      window.setTimeout(() => setJoinUrlCopied(false), 2000);
+                    });
+                  }}
+                />
+              ) : null}
+
+              {!isExperienceMode ? (
               <Card
                 id="show-builder-event"
                 size="sm"
@@ -1078,8 +1346,9 @@ export function ShowBuilder() {
                   ) : null}
                 </CardContent>
               </Card>
+              ) : null}
 
-              {event ? (
+              {activeEvent ? (
               <Card size="sm" className="shadow-md">
                 <CardHeader className="border-b border-border/60 pb-3">
                   <CardTitle className="font-heading text-base">Show readiness</CardTitle>
@@ -1155,19 +1424,28 @@ export function ShowBuilder() {
                   </InlineHint>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-3">
-                  {!event ? (
+                  {!canEdit ? (
                     <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-950 dark:text-amber-50">
                       <p>
-                        <strong className="font-semibold">Locked until a show is open.</strong> Use the{" "}
-                        <a href="#show-builder-event" className="font-semibold underline">
-                          Event
-                        </a>{" "}
-                        card above, or:
+                        <strong className="font-semibold">Locked until a show is open.</strong>{" "}
+                        {isExperienceMode ? (
+                          <>Wait for the experience to load, or open from <Link href="/experiences" className="underline">Experiences</Link>.</>
+                        ) : (
+                          <>
+                            Use the{" "}
+                            <a href="#show-builder-event" className="font-semibold underline">
+                              Event
+                            </a>{" "}
+                            card above, or:
+                          </>
+                        )}
                       </p>
-                      <Link href="/show" className={cn(buttonVariants({ size: "sm", variant: "secondary" }), "w-full no-underline")}>
-                        <Play className="mr-1 size-3 fill-current" />
-                        Open show night
-                      </Link>
+                      {!isExperienceMode ? (
+                        <Link href="/show" className={cn(buttonVariants({ size: "sm", variant: "secondary" }), "w-full no-underline")}>
+                          <Play className="mr-1 size-3 fill-current" />
+                          Open show night
+                        </Link>
+                      ) : null}
                     </div>
                   ) : null}
                   <section className="rounded-lg border border-primary/15 bg-primary/5 p-3 text-xs dark:bg-primary/10">
@@ -1187,11 +1465,11 @@ export function ShowBuilder() {
                   </section>
                   {event ? <ReelLibraryUploadZone disabled={busy} onUploaded={onReelFileUploaded} /> : null}
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" size="sm" variant="secondary" onClick={addLibraryVideo} disabled={!event || busy}>
+                    <Button type="button" size="sm" variant="secondary" onClick={addLibraryVideo} disabled={!canEdit || busy}>
                       <Plus className="mr-1 size-4" />
                       Add reel
                     </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={addSampleHostedReel} disabled={!event || busy}>
+                    <Button type="button" size="sm" variant="outline" onClick={addSampleHostedReel} disabled={!canEdit || busy}>
                       <Film className="mr-1 size-4" />
                       Add sample (HTTPS)
                     </Button>
@@ -1212,12 +1490,12 @@ export function ShowBuilder() {
                             ) : null}
                           </div>
                           <div className="space-y-2">
-                            <Input className="h-8 text-sm" value={entry.label} onChange={(e) => updateLibraryEntry(entry.id, { label: e.target.value })} disabled={!event || busy} />
+                            <Input className="h-8 text-sm" value={entry.label} onChange={(e) => updateLibraryEntry(entry.id, { label: e.target.value })} disabled={!canEdit || busy} />
                             <Input
                               className="h-8 font-mono text-xs"
                               value={entry.url}
                               onChange={(e) => updateLibraryEntry(entry.id, { url: e.target.value })}
-                              disabled={!event || busy}
+                              disabled={!canEdit || busy}
                               placeholder="/videos/scene.mp4"
                             />
                             <div className="flex flex-wrap gap-1">
@@ -1230,13 +1508,13 @@ export function ShowBuilder() {
                                 size="sm"
                                 variant="outline"
                                 className="h-8"
-                                disabled={!event || !resolveStoryVideoUrl(entry.url, pageOrigin)}
+                                disabled={!canEdit || !resolveStoryVideoUrl(entry.url, pageOrigin)}
                                 onClick={() => setPreviewLibraryId((id) => (id === entry.id ? null : entry.id))}
                               >
                                 <Eye className="mr-1 size-3" />
                                 Preview
                               </Button>
-                              <Button type="button" size="sm" variant="destructive" className="h-8" disabled={!event || busy} onClick={() => deleteLibraryVideo(entry.id)}>
+                              <Button type="button" size="sm" variant="destructive" className="h-8" disabled={!canEdit || busy} onClick={() => deleteLibraryVideo(entry.id)}>
                                 <Trash2 className="mr-1 size-3" />
                               </Button>
                             </div>
@@ -1276,15 +1554,15 @@ export function ShowBuilder() {
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-2 p-3">
               <div className="flex flex-wrap gap-1.5">
-                <Button type="button" size="sm" variant="secondary" onClick={addNode} disabled={!event || busy}>
+                <Button type="button" size="sm" variant="secondary" onClick={addNode} disabled={!canEdit || busy}>
                   <Plus className="mr-1 size-3.5" />
                   Add beat
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={duplicateNode} disabled={!event || !selected}>
+                <Button type="button" size="sm" variant="outline" onClick={duplicateNode} disabled={!canEdit || !selected}>
                   <Copy className="mr-1 size-3.5" />
                   Duplicate
                 </Button>
-                <Button type="button" size="sm" variant="outline" onClick={deleteNode} disabled={!event || !selected || nodes.length <= 1}>
+                <Button type="button" size="sm" variant="outline" onClick={deleteNode} disabled={!canEdit || !selected || nodes.length <= 1}>
                   <Trash2 className="mr-1 size-3.5" />
                 </Button>
               </div>
@@ -1321,19 +1599,24 @@ export function ShowBuilder() {
           </div>
           <ScrollArea className="min-h-0 flex-1">
             <div className="p-4 pb-24">
-              {!event ? (
+              {!canEdit ? (
                 <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
                   <p className="text-muted-foreground text-sm leading-relaxed">
-                    Beats and reels unlock after a show is loaded. For show night, start on{" "}
-                    <strong className="text-foreground">Show night</strong> — one button opens operator + projector.
+                    {isExperienceMode
+                      ? "Loading your saved experience…"
+                      : "Beats and reels unlock after a show is loaded. For show night, start on Show night — one button opens operator + projector."}
                   </p>
-                  <Link href="/show" className={cn(buttonVariants({ size: "lg" }), "no-underline")}>
-                    <Play className="mr-2 size-4 fill-current" />
-                    Go live
-                  </Link>
-                  <a href="#show-builder-event" className="text-xs text-muted-foreground underline">
-                    Or load a show in the sidebar
-                  </a>
+                  {!isExperienceMode ? (
+                    <>
+                      <Link href="/show" className={cn(buttonVariants({ size: "lg" }), "no-underline")}>
+                        <Play className="mr-2 size-4 fill-current" />
+                        Go live
+                      </Link>
+                      <a href="#show-builder-event" className="text-xs text-muted-foreground underline">
+                        Or load a show in the sidebar
+                      </a>
+                    </>
+                  ) : null}
                 </div>
               ) : !selected ? (
                 <p className="text-muted-foreground text-sm">Select a beat in the timeline.</p>
@@ -1344,7 +1627,11 @@ export function ShowBuilder() {
                     <header className="border-b border-dashed border-amber-950/25 pb-4 dark:border-amber-200/15">
                       <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800 dark:text-amber-200/90">Live cinema cue</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Show <span className="font-mono text-foreground">{event.code}</span> · Beat order #{selected.sort_order + 1}
+                        Show{" "}
+                        <span className="font-mono text-foreground">
+                          {activeEvent?.code ?? experience?.slug ?? "—"}
+                        </span>{" "}
+                        · Beat order #{selected.sort_order + 1}
                       </p>
                     </header>
 

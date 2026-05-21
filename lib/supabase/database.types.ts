@@ -175,6 +175,8 @@ export interface Database {
           poster_url: string | null;
           estimated_runtime_minutes: number | null;
           status: ExperienceStatus;
+          builder_story: Json | null;
+          rehearsal_event_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -186,6 +188,8 @@ export interface Database {
           poster_url?: string | null;
           estimated_runtime_minutes?: number | null;
           status?: ExperienceStatus;
+          builder_story?: Json | null;
+          rehearsal_event_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -197,6 +201,8 @@ export interface Database {
           poster_url?: string | null;
           estimated_runtime_minutes?: number | null;
           status?: ExperienceStatus;
+          builder_story?: Json | null;
+          rehearsal_event_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

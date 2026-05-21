@@ -330,7 +330,7 @@ export function ShowNightHub() {
       <div className="flex flex-wrap justify-center gap-2 border-t border-border/60 pt-4 sm:justify-start">
         <Link href="/experiences" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           <Film className="mr-1 size-4" />
-          Movie Experiences
+          Movie Experiences (show builder)
         </Link>
         <Link href="/admin/story" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           <Settings2 className="mr-1 size-4" />

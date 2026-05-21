@@ -45,7 +45,7 @@ export function ExperiencesDashboard() {
   return (
     <ExperienceShell
       title="Movie Experiences"
-      subtitle="Save interactive nights as templates. Launch one into a live room when you are ready to run the show."
+      subtitle="Same show builder as Edit show — build at home, rehearse on your laptop, launch the identical night at the venue."
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-[var(--kc-champagne)]">
@@ -114,7 +114,7 @@ export function ExperiencesDashboard() {
                       href={`/experiences/${exp.id}/edit`}
                       className={buttonVariants({ variant: "outline", size: "sm" })}
                     >
-                      Edit
+                      Open builder
                     </Link>
                     <Link
                       href={`/experiences/${exp.id}/launch`}

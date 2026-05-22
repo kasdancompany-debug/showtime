@@ -17,6 +17,10 @@ import { readStoredOperatorCode } from "@/lib/showtime/operator-session";
 import { displayStoryVideoFilename, resolveStoryVideoUrl } from "@/lib/showtime/video-url";
 
 function readInitialEventCode(storeCode: string): string {
+  if (typeof window !== "undefined") {
+    const fromQuery = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
+    if (fromQuery && fromQuery.length >= 3) return fromQuery;
+  }
   const stored = readStoredOperatorCode();
   return stored.length >= 3 ? stored : storeCode;
 }

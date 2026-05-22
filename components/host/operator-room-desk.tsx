@@ -18,5 +18,5 @@ export function OperatorRoomDesk({ roomCode }: Props) {
     if (code.length >= 3) writeStoredOperatorCode(code);
   }, [code]);
 
-  return <HostControlDesk />;
+  return <HostControlDesk boundRoomCode={code} />;
 }

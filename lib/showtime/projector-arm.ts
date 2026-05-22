@@ -28,12 +28,18 @@ export function clearProjectorArmed(): void {
   }
 }
 
+import { readStoredOperatorCode } from "@/lib/showtime/operator-session";
+
 const PROJECTOR_WINDOW_NAME = "kasdan-projector";
 
 /** Reuse one projector tab per browser profile (focus if already open). */
-export function openOrFocusProjector(arm = false): Window | null {
+export function openOrFocusProjector(arm = false, roomCode?: string): Window | null {
   if (typeof window === "undefined") return null;
-  const path = arm ? "/screen?arm=1" : "/screen";
+  const code = (roomCode?.trim() || readStoredOperatorCode()).toUpperCase();
+  const qs = new URLSearchParams();
+  if (arm) qs.set("arm", "1");
+  if (code.length >= 3) qs.set("code", code);
+  const path = qs.toString() ? `/screen?${qs}` : "/screen";
   const url = `${window.location.origin}${path}`;
   try {
     return window.open(url, PROJECTOR_WINDOW_NAME);

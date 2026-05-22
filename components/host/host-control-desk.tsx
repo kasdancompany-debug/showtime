@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 /**
  * Live host desk — remote control for `/screen` only (see {@link HostRemoteDesk}).
  */
-export function HostControlDesk() {
+export function HostControlDesk({ boundRoomCode }: { boundRoomCode?: string } = {}) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const eventId = useMockEventStore((s) => s.eventId);
   const syncMode = useMemo(() => getShowtimeSyncMode(), []);
@@ -37,7 +37,7 @@ export function HostControlDesk() {
           Showtime
         </Link>
       </div>
-      {supabase ? <HostRemoteDesk /> : <HostLocalPreviewDesk />}
+      {supabase ? <HostRemoteDesk boundRoomCode={boundRoomCode} /> : <HostLocalPreviewDesk />}
     </div>
   );
 }

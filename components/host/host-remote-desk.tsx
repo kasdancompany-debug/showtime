@@ -147,11 +147,11 @@ function ConfirmDialog({
 /**
  * `/host` — venue operator desk: live status board and discrete controls for `/screen`.
  */
-export function HostRemoteDesk() {
+export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {}) {
   const { snapshot: connection, reachability, reachabilityDetail } = useShowtimeConnection();
   const diagnostics = useShowtimeHostDiagnostics();
   const joinBase = useJoinBaseUrl();
-  const op = useOperatorSupabaseRoom();
+  const op = useOperatorSupabaseRoom({ boundRoomCode });
 
   const [drawer, setDrawer] = useState<Drawer>(null);
   const [confirm, setConfirm] = useState<ConfirmKind>(null);

@@ -61,7 +61,7 @@ export function experienceRehearsalCode(slug: string): string {
   return slugTitleToShowCode(slug).slice(0, 40) || "REH";
 }
 
-function parseBuilderStory(raw: Json | null): BranchStoryJsonFile | null {
+export function parseExperienceBuilderStory(raw: Json | null): BranchStoryJsonFile | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
   if (o.format !== "kasdan-branch-story") return null;
@@ -73,7 +73,7 @@ export function resolveExperienceBranchNodes(
   experience: ExperienceRow,
   legacy?: { scenes: ExperienceSceneRow[]; voteMoments: ExperienceVoteMomentRow[] },
 ): BranchEditorNode[] {
-  const doc = parseBuilderStory(experience.builder_story);
+  const doc = parseExperienceBuilderStory(experience.builder_story);
   if (doc) {
     const imported = importBranchStoryDocument(JSON.stringify(doc));
     if (imported.ok && imported.nodes.length > 0) {
@@ -84,6 +84,16 @@ export function resolveExperienceBranchNodes(
     return materializeExperienceToBranchNodes(legacy.scenes, legacy.voteMoments);
   }
   return [];
+}
+
+/** Reel library from saved builder_story, merged with beat URLs (for launch materialization). */
+export function resolveExperienceVideoLibrary(
+  experience: ExperienceRow,
+  nodes: BranchEditorNode[],
+): VideoLibraryEntry[] {
+  const doc = parseExperienceBuilderStory(experience.builder_story);
+  const storedLib = doc?.video_library ? parseVideoLibrary(doc.video_library) : [];
+  return mergeLibraryForLoad(storedLib, nodes);
 }
 
 export async function loadExperienceBuilderState(
@@ -116,7 +126,7 @@ export async function loadExperienceBuilderState(
     ]);
   }
 
-  const doc = parseBuilderStory(full.builder_story);
+  const doc = parseExperienceBuilderStory(full.builder_story);
   const storedLib = doc?.video_library ? parseVideoLibrary(doc.video_library) : [];
   const lib = mergeLibraryForLoad(storedLib, nodes);
   const packed = attachVideoAssetIds(repackSortOrder(nodes), lib);

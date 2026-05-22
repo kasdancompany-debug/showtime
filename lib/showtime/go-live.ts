@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
 import { armShowRoomAtOpening } from "@/lib/showtime/arm-show-room";
+import { writeStoredOperatorCode } from "@/lib/showtime/operator-session";
 import { NIGHT1_EVENT_CODE } from "@/lib/showtime/night1-demo-graph";
 import { slugTitleToShowCode } from "@/lib/showtime/show-code";
 import type { Database } from "@/lib/supabase/database.types";
@@ -87,8 +88,11 @@ export function resolveGoLiveCode(codeInput: string, titleDraft: string): string
 }
 
 export function openShowNightSurfaces(code: string): { screenWindow: Window | null } {
-  const hostUrl = `/operator/${encodeURIComponent(code)}`;
-  const screenWindow = window.open("/screen", "showtime-screen", "noopener,noreferrer");
+  const normalized = code.trim().toUpperCase();
+  writeStoredOperatorCode(normalized);
+  const hostUrl = `/operator/${encodeURIComponent(normalized)}`;
+  const screenUrl = `/screen?code=${encodeURIComponent(normalized)}`;
+  const screenWindow = window.open(screenUrl, "showtime-screen", "noopener,noreferrer");
   window.location.assign(hostUrl);
   return { screenWindow };
 }

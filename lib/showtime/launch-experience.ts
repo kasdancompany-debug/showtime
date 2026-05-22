@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { armShowRoomAtOpening } from "@/lib/showtime/arm-show-room";
 import { generateRoomCode } from "@/lib/showtime/generate-room-code";
-import { resolveExperienceBranchNodes } from "@/lib/supabase/experience-builder-snapshot";
+import {
+  resolveExperienceBranchNodes,
+  resolveExperienceVideoLibrary,
+} from "@/lib/supabase/experience-builder-snapshot";
 import type { Database } from "@/lib/supabase/database.types";
 import { ensureEventForRoom } from "@/lib/showtime/ensure-event-for-room";
 import {
@@ -22,13 +25,10 @@ export type LaunchExperienceResult = {
   hasOpeningVideo: boolean;
 };
 
-async function pickUniqueRoomCode(client: SupabaseClient<Database>, preferred?: string): Promise<string> {
+/** Prefer the operator’s room code; only auto-generate when none was provided. */
+async function resolveLaunchRoomCode(client: SupabaseClient<Database>, preferred?: string): Promise<string> {
   const first = preferred?.trim().toUpperCase();
-  if (first && first.length >= 3) {
-    const taken = await getLiveRoomByCode(client, first);
-    const eventTaken = await getEventByCode(client, first);
-    if (!taken && !eventTaken) return first;
-  }
+  if (first && first.length >= 3) return first;
 
   for (let attempt = 0; attempt < 40; attempt++) {
     const code = generateRoomCode(6);
@@ -39,8 +39,46 @@ async function pickUniqueRoomCode(client: SupabaseClient<Database>, preferred?: 
   throw new Error("Could not generate a unique room code. Try again.");
 }
 
+async function upsertLiveRoom(
+  client: SupabaseClient<Database>,
+  roomCode: string,
+  experienceId: string,
+  eventId: string,
+): Promise<LiveRoomRow> {
+  const existing = await getLiveRoomByCode(client, roomCode);
+  if (existing) {
+    const { data, error } = await client
+      .from("live_rooms")
+      .update({
+        experience_id: experienceId,
+        event_id: eventId,
+        status: "lobby",
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error("Live room could not be updated.");
+    return data;
+  }
+
+  const { data, error } = await client
+    .from("live_rooms")
+    .insert({
+      room_code: roomCode,
+      experience_id: experienceId,
+      event_id: eventId,
+      status: "lobby",
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  if (!data) throw new Error("Live room row was not created.");
+  return data;
+}
+
 /**
- * Materialize an experience into a fresh live room (`events` + `story_nodes` + `live_rooms`).
+ * Materialize an experience into a live room (`events` + `story_nodes` + `live_rooms`).
  */
 export async function launchExperienceToLiveRoom(
   client: SupabaseClient<Database>,
@@ -61,12 +99,13 @@ export async function launchExperienceToLiveRoom(
     throw new Error("Add at least one beat in the show builder before launching.");
   }
 
-  const roomCode = await pickUniqueRoomCode(client, options?.roomCode);
+  const videoLibrary = resolveExperienceVideoLibrary(full, nodes);
+  const roomCode = await resolveLaunchRoomCode(client, options?.roomCode);
   const title = full.title.trim() || `Experience ${roomCode}`;
 
   const event = await ensureEventForRoom(client, roomCode, title);
 
-  await replaceStoryNodesForEvent(client, event.id, nodes);
+  await replaceStoryNodesForEvent(client, event.id, nodes, { videoLibrary });
   await updateEvent(client, event.id, {
     title,
     experience_id: full.id,
@@ -76,18 +115,7 @@ export async function launchExperienceToLiveRoom(
   const storyNodes = await listStoryNodesForEvent(client, event.id);
   const armed = await armShowRoomAtOpening(client, event.id, storyNodes);
 
-  const { data: liveRoom, error: lrErr } = await client
-    .from("live_rooms")
-    .insert({
-      room_code: roomCode,
-      experience_id: full.id,
-      event_id: armed.event.id,
-      status: "lobby",
-    })
-    .select("*")
-    .single();
-  if (lrErr) throw lrErr;
-  if (!liveRoom) throw new Error("Live room row was not created.");
+  const liveRoom = await upsertLiveRoom(client, roomCode, full.id, armed.event.id);
 
   return {
     roomCode,

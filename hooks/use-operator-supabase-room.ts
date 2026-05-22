@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
 import { openOrFocusProjector } from "@/lib/showtime/projector-arm";
-import { MOCK_EVENT } from "@/lib/mock-data";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { friendlySupabaseError } from "@/lib/supabase/operator-errors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -85,11 +84,22 @@ function playNextLine(event: EventRow, nodesByKey: Map<string, StoryNodeRow>, no
   return "Load a show on this page to see the next operator step.";
 }
 
-export function useOperatorSupabaseRoom() {
+function resolveInitialOperatorCode(boundRoomCode?: string): string {
+  const bound = boundRoomCode?.trim().toUpperCase() ?? "";
+  if (bound.length >= 3) return bound;
+  if (typeof window !== "undefined") {
+    const stored = readStoredOperatorCode();
+    if (stored.length >= 3) return stored;
+  }
+  return "";
+}
+
+export function useOperatorSupabaseRoom(options?: { boundRoomCode?: string }) {
+  const boundRoomCode = options?.boundRoomCode?.trim().toUpperCase() ?? "";
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const syncSupabaseEventMeta = useMockEventStore((s) => s.syncSupabaseEventMeta);
 
-  const [eventCode, setEventCode] = useState(MOCK_EVENT.eventCode);
+  const [eventCode, setEventCode] = useState(() => resolveInitialOperatorCode(boundRoomCode));
   const [event, setEvent] = useState<EventRow | null>(null);
   const [nodes, setNodes] = useState<StoryNodeRow[]>([]);
   const [tallies, setTallies] = useState<{ a: number; b: number }>({ a: 0, b: 0 });
@@ -99,13 +109,17 @@ export function useOperatorSupabaseRoom() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const seededRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+
   useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
-    const stored = readStoredOperatorCode();
-    if (stored) setEventCode(stored);
-  }, []);
+    if (boundRoomCode.length < 3) return;
+    setEventCode((prev) => (prev === boundRoomCode ? prev : boundRoomCode));
+    try {
+      writeStoredOperatorCode(boundRoomCode);
+    } catch {
+      /* ignore */
+    }
+  }, [boundRoomCode]);
 
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const nodesByKey = useMemo(() => new Map(nodes.map((n) => [n.node_key, n])), [nodes]);
@@ -143,11 +157,13 @@ export function useOperatorSupabaseRoom() {
       setLoading(false);
       return;
     }
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     setBootError(null);
     try {
       const anon = await tryEnsureAnonymousSession(supabase);
       if (!anon.ok) {
+        if (generation !== loadGenerationRef.current) return;
         setBootError(anon.message);
         setEvent(null);
         setNodes([]);
@@ -155,19 +171,22 @@ export function useOperatorSupabaseRoom() {
       }
       const code = eventCode.trim().toUpperCase();
       if (code.length < 3) {
+        if (generation !== loadGenerationRef.current) return;
         setBootError("Enter an event code of at least three letters.");
         setEvent(null);
         setNodes([]);
         return;
       }
       const ev = await getEventByCode(supabase, code);
+      if (generation !== loadGenerationRef.current) return;
       if (!ev) {
-        setBootError(`No live event is published for code “${code}”. Check the code or create the event in Supabase.`);
+        setBootError(`No live event is published for code “${code}”. Launch this experience first, or check the code.`);
         setEvent(null);
         setNodes([]);
         return;
       }
       const list = await listStoryNodesForEvent(supabase, ev.id);
+      if (generation !== loadGenerationRef.current) return;
       setEvent(ev);
       setNodes(list);
       syncSupabaseEventMeta({ eventId: ev.id, code: ev.code, title: ev.title });
@@ -177,19 +196,22 @@ export function useOperatorSupabaseRoom() {
         /* ignore */
       }
       const count = await fetchAudienceMemberCount(supabase, ev.id);
+      if (generation !== loadGenerationRef.current) return;
       setAudienceCount(count);
       if (ev.current_node_id && ev.status === "voting_open") {
         const t = await fetchVoteTalliesForNode(supabase, ev.id, ev.current_node_id);
+        if (generation !== loadGenerationRef.current) return;
         setTallies(t);
       } else {
         setTallies({ a: 0, b: 0 });
       }
     } catch (e) {
+      if (generation !== loadGenerationRef.current) return;
       setBootError(friendlySupabaseError(e));
       setEvent(null);
       setNodes([]);
     } finally {
-      setLoading(false);
+      if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [supabase, eventCode, syncSupabaseEventMeta]);
 

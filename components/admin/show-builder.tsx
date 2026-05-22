@@ -1515,9 +1515,9 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Reel</span>
                             {usedBy.length > 0 ? (
-                              <span className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
-                                <AlertTriangle className="size-3 shrink-0" />
-                                {usedBy.join(", ")}
+                              <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+                                <CheckCircle2 className="size-3 shrink-0" aria-hidden />
+                                In use · {usedBy.join(", ")}
                               </span>
                             ) : null}
                           </div>
@@ -1778,7 +1778,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     <section className="space-y-3">
                       <h3 className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Booth script</h3>
                       <div className="space-y-1.5">
-                        <Label htmlFor="op-notes">Operator notes</Label>
+                        <Label htmlFor="op-notes">Booth notes (optional)</Label>
                         <textarea
                           id="op-notes"
                           className={textareaClass}

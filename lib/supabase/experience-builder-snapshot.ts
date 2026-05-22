@@ -32,6 +32,29 @@ export type ExperienceBuilderState = {
   rehearsalEvent: EventRow | null;
 };
 
+export type ExperienceTimelineSummary = {
+  beatCount: number;
+  voteCount: number;
+};
+
+/** Count beats/votes from saved builder_story (or legacy scenes table). */
+export function summarizeExperienceTimeline(full: {
+  builder_story: ExperienceRow["builder_story"];
+  scenes: ExperienceSceneRow[];
+  voteMoments: ExperienceVoteMomentRow[];
+}): ExperienceTimelineSummary {
+  const nodes = resolveExperienceBranchNodes(
+    { builder_story: full.builder_story } as ExperienceRow,
+    { scenes: full.scenes, voteMoments: full.voteMoments },
+  );
+  const voteCount = nodes.filter(
+    (n) =>
+      !n.is_ending &&
+      Boolean(n.question?.trim() && n.option_a_label?.trim() && n.option_b_label?.trim()),
+  ).length;
+  return { beatCount: nodes.length, voteCount };
+}
+
 export function experienceRehearsalCode(slug: string): string {
   const fromSlug = slugTitleToShowCode(slug.replace(/-/g, " "));
   if (fromSlug.length >= 3) return fromSlug.slice(0, 40);

@@ -124,7 +124,6 @@ describe("validateBranchStory (hosted URL only)", () => {
     ];
     const { ok, warnings } = validateBranchStory(nodes);
     expect(ok).toBe(true);
-    expect(warnings.some((w) => w.includes("01_A") && w.includes("operator notes"))).toBe(true);
     expect(warnings.some((w) => w.includes("02_END") && w.includes("Draft"))).toBe(true);
   });
 });

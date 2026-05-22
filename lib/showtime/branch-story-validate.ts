@@ -61,11 +61,6 @@ function appendLiveReadinessWarnings(nodes: BranchEditorNode[], warnings: string
       );
       continue;
     }
-    if (!n.operator_notes?.trim()) {
-      warnings.push(
-        `${k}: marked Ready but has no operator notes — add what to say or do in the booth, or set back to Draft while you iterate.`,
-      );
-    }
   }
 }
 

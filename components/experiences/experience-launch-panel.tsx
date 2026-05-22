@@ -20,6 +20,7 @@ import {
   launchExperienceViaClient,
 } from "@/lib/showtime/launch-experience-client";
 import { writeStoredOperatorCode } from "@/lib/showtime/operator-session";
+import { summarizeExperienceTimeline } from "@/lib/supabase/experience-builder-snapshot";
 import { getExperienceFull, type ExperienceFull } from "@/lib/supabase/experiences";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -133,7 +134,7 @@ export function ExperienceLaunchPanel({ experienceId }: Props) {
     );
   }
 
-  const beatCount = exp.scenes.length + exp.voteMoments.length;
+  const { beatCount, voteCount } = summarizeExperienceTimeline(exp);
 
   return (
     <ExperienceShell
@@ -145,7 +146,7 @@ export function ExperienceLaunchPanel({ experienceId }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <ExperienceStatusPill status={exp.status} />
         <span className="text-xs text-[var(--kc-champagne)]">
-          {exp.scenes.length} scenes · {exp.voteMoments.length} votes
+          {beatCount} beats · {voteCount} vote{voteCount === 1 ? "" : "s"}
         </span>
       </div>
 
@@ -155,7 +156,7 @@ export function ExperienceLaunchPanel({ experienceId }: Props) {
         </p>
       ) : beatCount === 0 ? (
         <p className="rounded-sm border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
-          Add at least one scene or vote moment before launching.{" "}
+          Add at least one beat in the show builder before launching.{" "}
           <Link href={`/experiences/${experienceId}/edit`} className="underline">
             Edit timeline
           </Link>

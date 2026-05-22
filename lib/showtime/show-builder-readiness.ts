@@ -59,14 +59,14 @@ export function computeShowReadiness(args: {
       : `Set both branch targets on: ${bad.map((b) => b.node_key.trim()).join(", ")}.`;
   }
 
-  let notesOk = nodes.length > 0;
-  let notesDetail = "Add beats, then write booth notes.";
+  const withNotes = nodes.filter((n) => n.operator_notes?.trim()).length;
+  const notesOk = true;
+  let notesDetail = "Optional booth notes per beat — not required to save or launch.";
   if (nodes.length > 0) {
-    const bad = nodes.filter((n) => !n.operator_notes?.trim());
-    notesOk = bad.length === 0;
-    notesDetail = notesOk
-      ? "Operator notes are filled in for every beat (your cue sheet)."
-      : `Add operator notes for: ${bad.map((b) => b.node_key.trim()).join(", ")}.`;
+    notesDetail =
+      withNotes === nodes.length
+        ? `Booth notes on all ${nodes.length} beats.`
+        : `Optional — ${withNotes} of ${nodes.length} beats have booth notes.`;
   }
 
   const screenOk = screenTestAcknowledged;
@@ -83,7 +83,7 @@ export function computeShowReadiness(args: {
     { id: "videos", label: "Videos connected", ok: videosOk, detail: videosDetail },
     { id: "questions", label: "Questions complete", ok: questionsOk, detail: questionsDetail },
     { id: "branches", label: "Branches assigned", ok: branchesOk, detail: branchesDetail },
-    { id: "notes", label: "Operator notes added", ok: notesOk, detail: notesDetail },
+    { id: "notes", label: "Booth notes (optional)", ok: notesOk, detail: notesDetail },
     { id: "screen", label: "Screen connection tested", ok: screenOk, detail: screenDetail },
     { id: "save", label: "Ready to save", ok: saveOk, detail: saveDetail },
   ];

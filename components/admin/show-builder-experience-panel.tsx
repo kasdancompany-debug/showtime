@@ -35,7 +35,7 @@ type Props = {
   onPosterChange: (v: string) => void;
   onStatusChange: (v: ExperienceStatus) => void;
   onSaveMeta: () => void;
-  onPosterApply: (url: string | null) => void;
+  onPosterApply: (url: string | null) => void | Promise<void>;
   onTestRehearsal: () => void;
   onCopyJoin: () => void;
 };
@@ -132,9 +132,9 @@ export function ShowBuilderExperiencePanel({
             experienceId={experienceId}
             kind="experience"
             currentUrl={posterDraft}
-            onUploaded={(publicUrl) => {
+            onUploaded={async (publicUrl) => {
               onPosterChange(publicUrl);
-              onPosterApply(publicUrl);
+              await onPosterApply(publicUrl);
             }}
           />
           <Input
@@ -146,7 +146,13 @@ export function ShowBuilderExperiencePanel({
             placeholder="https://… (or upload above)"
           />
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="secondary" disabled={metaBusy} onClick={() => onPosterApply(posterDraft.trim() || null)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={metaBusy}
+              onClick={() => void onPosterApply(posterDraft.trim() || null)}
+            >
               Save thumbnail URL
             </Button>
             {posterDraft.trim() ? (
@@ -160,7 +166,9 @@ export function ShowBuilderExperiencePanel({
           Save experience details
         </Button>
         {metaError ? (
-          <p className="text-destructive text-xs">{metaError}</p>
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-destructive text-xs">
+            {metaError}
+          </p>
         ) : null}
 
         <div className="space-y-2 border-t border-border/60 pt-3">

@@ -719,30 +719,35 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
     syncSupabaseEventMeta,
   ]);
 
-  const handleSaveExperienceMeta = useCallback(async () => {
-    if (!supabase || !experienceId) return;
-    setExperienceMetaError(null);
-    setExperienceMetaBusy(true);
-    try {
-      const anon = await tryEnsureAnonymousSession(supabase);
-      if (!anon.ok) {
-        setExperienceMetaError(anon.message);
-        return;
+  const handleSaveExperienceMeta = useCallback(
+    async (overrides?: { posterUrl?: string | null }) => {
+      if (!supabase || !experienceId) return;
+      setExperienceMetaError(null);
+      setExperienceMetaBusy(true);
+      try {
+        const anon = await tryEnsureAnonymousSession(supabase);
+        if (!anon.ok) {
+          setExperienceMetaError(anon.message);
+          return;
+        }
+        const posterRaw =
+          overrides?.posterUrl !== undefined ? overrides.posterUrl : experiencePosterDraft;
+        const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
+          title: experienceTitleDraft,
+          description: experienceDescDraft,
+          posterUrl: normalizePosterImageUrlInput(posterRaw, pageOrigin) || null,
+          status: experienceStatusDraft,
+        });
+        setExperience(updated);
+        setExperiencePosterDraft(updated.poster_url?.trim() ?? "");
+      } catch (e) {
+        setExperienceMetaError(formatBuilderError(e).friendly);
+        throw e;
+      } finally {
+        setExperienceMetaBusy(false);
       }
-      const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
-        title: experienceTitleDraft,
-        description: experienceDescDraft,
-        posterUrl: normalizePosterImageUrlInput(experiencePosterDraft, pageOrigin) || null,
-        status: experienceStatusDraft,
-      });
-      setExperience(updated);
-      setExperiencePosterDraft(updated.poster_url?.trim() ?? "");
-    } catch (e) {
-      setExperienceMetaError(formatBuilderError(e).friendly);
-    } finally {
-      setExperienceMetaBusy(false);
-    }
-  }, [
+    },
+    [
     supabase,
     experienceId,
     nodes,
@@ -1191,9 +1196,10 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                   onPosterChange={setExperiencePosterDraft}
                   onStatusChange={setExperienceStatusDraft}
                   onSaveMeta={() => void handleSaveExperienceMeta()}
-                  onPosterApply={(url) => {
-                    setExperiencePosterDraft(url ?? "");
-                    void handleSaveExperienceMeta();
+                  onPosterApply={async (url) => {
+                    const next = url?.trim() ?? "";
+                    setExperiencePosterDraft(next);
+                    await handleSaveExperienceMeta({ posterUrl: next || null });
                   }}
                   onTestRehearsal={() => void handleTestRehearsal()}
                   onCopyJoin={() => {

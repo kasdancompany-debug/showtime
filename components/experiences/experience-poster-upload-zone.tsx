@@ -1,19 +1,20 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { CheckCircle2, Loader2, Upload } from "lucide-react";
 
 import { ExperienceThumbnail } from "@/components/experiences/experience-thumbnail";
 import { resolvePosterImageUrl } from "@/lib/showtime/poster-image-url";
+import { uploadPosterImage } from "@/lib/showtime/upload-poster-client";
 import { cn } from "@/lib/utils";
 
 type Props = {
   disabled?: boolean;
   experienceId?: string;
-  /** `experience` = Movie Experiences card; `screen` = walk-in projector image */
   kind?: "experience" | "screen";
   currentUrl?: string;
-  onUploaded: (publicUrl: string) => void;
+  /** Called after upload; may persist to DB — await so errors surface here. */
+  onUploaded: (publicUrl: string) => void | Promise<void>;
 };
 
 export function ExperiencePosterUploadZone({
@@ -27,25 +28,19 @@ export function ExperiencePosterUploadZone({
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const previewSrc = resolvePosterImageUrl(currentUrl);
 
   const uploadFile = useCallback(
     async (file: File) => {
       setError(null);
+      setSuccess(null);
       setBusy(true);
       try {
-        const fd = new FormData();
-        fd.set("file", file);
-        fd.set("kind", kind);
-        if (experienceId) fd.set("experienceId", experienceId);
-
-        const res = await fetch("/api/media/upload-poster", { method: "POST", body: fd });
-        const data = (await res.json()) as { ok?: boolean; error?: string; publicUrl?: string };
-        if (!data.ok || !data.publicUrl) {
-          throw new Error(data.error ?? "Upload failed.");
-        }
-        onUploaded(data.publicUrl);
+        const publicUrl = await uploadPosterImage(file, { kind, experienceId });
+        await onUploaded(publicUrl);
+        setSuccess("Thumbnail saved.");
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed.");
       } finally {
@@ -109,14 +104,32 @@ export function ExperiencePosterUploadZone({
           inactive && "cursor-not-allowed opacity-60",
         )}
       >
-        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Upload className="size-4 opacity-80" aria-hidden />}
-        {kind === "experience" ? "Upload thumbnail (shows on Experiences list)" : "Upload walk-in image"}
+        {busy ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            Uploading & saving…
+          </>
+        ) : (
+          <>
+            <Upload className="size-4 opacity-80" aria-hidden />
+            {kind === "experience" ? "Upload thumbnail (shows on Experiences list)" : "Upload walk-in image"}
+          </>
+        )}
       </button>
+      {success ? (
+        <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
+          {success}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
       <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Or paste a full <span className="font-mono">https://…</span> image link below. Local-only paths like{" "}
-        <span className="font-mono">/screen-posters/…</span> work after you upload on this site, not from your laptop alone.
+        Or paste a full <span className="font-mono">https://…</span> link below, then click Save thumbnail URL.
       </p>
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

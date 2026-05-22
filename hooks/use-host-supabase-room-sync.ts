@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 
 import { fetchAudienceMemberCount, fetchEventByCode } from "@/lib/join/supabase-room";
 import { MOCK_EVENT } from "@/lib/mock-data";
+import { readStoredOperatorCode } from "@/lib/showtime/operator-session";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 
@@ -16,7 +17,7 @@ const POLL_MS = 4000;
  */
 export function useHostSupabaseRoomSync() {
   const client = useMemo(() => createSupabaseBrowserClient(), []);
-  const eventCode = useMockEventStore((s) => s.eventCode);
+  const storeEventCode = useMockEventStore((s) => s.eventCode);
   const setEventId = useMockEventStore((s) => s.setEventId);
   const setAudienceConnected = useMockEventStore((s) => s.setAudienceConnected);
 
@@ -27,11 +28,12 @@ export function useHostSupabaseRoomSync() {
 
     const tick = async () => {
       try {
-        const row = await fetchEventByCode(client, eventCode);
+        const code = readStoredOperatorCode() || storeEventCode;
+        const row = await fetchEventByCode(client, code);
         if (cancelled) return;
 
         if (!row) {
-          if (eventCode.toUpperCase() === MOCK_EVENT.eventCode) {
+          if (code.toUpperCase() === MOCK_EVENT.eventCode) {
             setEventId(MOCK_EVENT.id);
           }
           return;
@@ -62,5 +64,5 @@ export function useHostSupabaseRoomSync() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [client, eventCode, setEventId, setAudienceConnected]);
+  }, [client, storeEventCode, setEventId, setAudienceConnected]);
 }

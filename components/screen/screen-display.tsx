@@ -142,7 +142,7 @@ export function ScreenDisplay() {
   const rehearsalProjection = syncMode === "local_preview";
 
   const st = screen.event?.status;
-  const code = screen.event?.code;
+  const code = screen.roomCode || screen.event?.code;
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   const onVideoEnded = useCallback(async () => {

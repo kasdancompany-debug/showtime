@@ -13,24 +13,23 @@ import {
   type EventRow,
   type StoryNodeRow,
 } from "@/lib/supabase/event-room";
-import { readStoredOperatorCode } from "@/lib/showtime/operator-session";
+import { readStoredOperatorCode, readUrlRoomCode, writeStoredOperatorCode } from "@/lib/showtime/operator-session";
 import { displayStoryVideoFilename, resolveStoryVideoUrl } from "@/lib/showtime/video-url";
 
-function readInitialEventCode(storeCode: string): string {
-  if (typeof window !== "undefined") {
-    const fromQuery = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
-    if (fromQuery && fromQuery.length >= 3) return fromQuery;
-  }
+function resolveScreenRoomCode(): string {
+  const url = readUrlRoomCode();
+  if (url.length >= 3) return url;
   const stored = readStoredOperatorCode();
-  return stored.length >= 3 ? stored : storeCode;
+  if (stored.length >= 3) return stored;
+  return "";
 }
 
 export function useScreenSupabaseDisplay() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const storeEventCode = useMockEventStore((s) => s.eventCode);
   const syncSupabaseEventMeta = useMockEventStore((s) => s.syncSupabaseEventMeta);
 
-  const [eventCode, setEventCode] = useState(storeEventCode);
+  const urlBoundCode = useMemo(() => readUrlRoomCode(), []);
+  const [eventCode, setEventCode] = useState(() => resolveScreenRoomCode());
   const [event, setEvent] = useState<EventRow | null>(null);
   const [currentNode, setCurrentNode] = useState<StoryNodeRow | null>(null);
   const [tallies, setTallies] = useState({ a: 0, b: 0 });
@@ -38,16 +37,18 @@ export function useScreenSupabaseDisplay() {
   const [error, setError] = useState<string | null>(null);
   const [rtGeneration, setRtGeneration] = useState(0);
 
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current) return;
-    seededRef.current = true;
-    setEventCode(readInitialEventCode(storeEventCode));
-  }, [storeEventCode]);
+  const bootstrapGenerationRef = useRef(0);
 
   useEffect(() => {
-    setEventCode((prev) => (storeEventCode && storeEventCode !== prev ? storeEventCode : prev));
-  }, [storeEventCode]);
+    if (urlBoundCode.length >= 3) {
+      setEventCode((prev) => (prev === urlBoundCode ? prev : urlBoundCode));
+      try {
+        writeStoredOperatorCode(urlBoundCode);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [urlBoundCode]);
 
   const eventRef = useRef(event);
   eventRef.current = event;
@@ -93,16 +94,19 @@ export function useScreenSupabaseDisplay() {
       setEvent(null);
       return;
     }
+    const generation = ++bootstrapGenerationRef.current;
     setLoading(true);
     setError(null);
     try {
-      const code = eventCode.trim().toUpperCase();
+      const code = (urlBoundCode.length >= 3 ? urlBoundCode : eventCode).trim().toUpperCase();
       if (code.length < 3) {
+        if (generation !== bootstrapGenerationRef.current) return;
         setEvent(null);
         setError("Missing room code. Use the link or QR for this screening, or add ?code= to the URL.");
         return;
       }
       const ev = await getEventByCode(supabase, code);
+      if (generation !== bootstrapGenerationRef.current) return;
       if (!ev) {
         setEvent(null);
         setError(`No event found for code “${code}”.`);
@@ -110,16 +114,24 @@ export function useScreenSupabaseDisplay() {
       }
       eventRef.current = ev;
       setEvent(ev);
+      setEventCode(ev.code);
       syncSupabaseEventMeta({ eventId: ev.id, code: ev.code, title: ev.title });
+      try {
+        writeStoredOperatorCode(ev.code);
+      } catch {
+        /* ignore */
+      }
       await refreshCurrentNode(ev);
+      if (generation !== bootstrapGenerationRef.current) return;
       await refreshTallies();
     } catch (e) {
+      if (generation !== bootstrapGenerationRef.current) return;
       setError(friendlySupabaseError(e));
       setEvent(null);
     } finally {
-      setLoading(false);
+      if (generation === bootstrapGenerationRef.current) setLoading(false);
     }
-  }, [supabase, eventCode, syncSupabaseEventMeta, refreshCurrentNode, refreshTallies]);
+  }, [supabase, eventCode, urlBoundCode, syncSupabaseEventMeta, refreshCurrentNode, refreshTallies]);
 
   useEffect(() => {
     void bootstrap();
@@ -272,12 +284,15 @@ export function useScreenSupabaseDisplay() {
   const pctA = totalVotes ? Math.round((tallies.a / totalVotes) * 1000) / 10 : 50;
   const pctB = totalVotes ? Math.round((tallies.b / totalVotes) * 1000) / 10 : 50;
 
+  const displayCode = event?.code ?? (urlBoundCode.length >= 3 ? urlBoundCode : eventCode);
+
   return {
     supabase,
     supabaseConfigured: Boolean(supabase),
     loading,
     error,
     event,
+    roomCode: displayCode,
     currentNode,
     tallies,
     pctA,

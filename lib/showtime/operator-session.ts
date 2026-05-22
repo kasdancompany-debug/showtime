@@ -12,14 +12,26 @@ function readOperatorCodeFromPath(): string {
   }
 }
 
+/** `?code=` on /screen or shared join links — highest priority for projector binding. */
+export function readUrlRoomCode(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const url = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
+    if (url && url.length >= 3) return url;
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
 /** Operator show code from URL path, `?code=`, or last desk entry — never from audience participant keys. */
 export function readStoredOperatorCode(): string {
   if (typeof window === "undefined") return "";
   try {
+    const fromQuery = readUrlRoomCode();
+    if (fromQuery.length >= 3) return fromQuery;
     const fromPath = readOperatorCodeFromPath();
     if (fromPath.length >= 3) return fromPath;
-    const url = new URLSearchParams(window.location.search).get("code")?.trim().toUpperCase();
-    if (url && url.length >= 3) return url;
     return window.localStorage.getItem(OPERATOR_CODE_LS)?.trim().toUpperCase() ?? "";
   } catch {
     return "";

@@ -15,6 +15,7 @@ import { useScreenSurfaceHeartbeat } from "@/hooks/use-screen-surface-heartbeat"
 import { useShowtimeConnection } from "@/hooks/use-showtime-connection";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
 import { getShowtimeSyncMode } from "@/lib/showtime/sync-mode";
+import { resolvePosterImageUrl } from "@/lib/showtime/poster-image-url";
 import { resolveStoryVideoUrl } from "@/lib/showtime/video-url";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { getNode } from "@/lib/story-engine/graph";
@@ -427,7 +428,7 @@ export function ScreenDisplay() {
     );
   } else if (isPreShowLobby) {
     const idlePosterRaw = screen.event!.screen_idle_poster_url?.trim() ?? "";
-    const idlePosterResolved = idlePosterRaw ? resolveStoryVideoUrl(idlePosterRaw, origin) : null;
+    const idlePosterResolved = idlePosterRaw ? resolvePosterImageUrl(idlePosterRaw, origin) : null;
     const showPosterHero = Boolean(idlePosterResolved);
     body = (
       <ProjectionCard>

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Film, Loader2, Plus, Rocket, Trash2 } from "lucide-react";
+import { Loader2, Plus, Rocket, Trash2 } from "lucide-react";
 
 import { ExperienceShell } from "@/components/experiences/experience-shell";
+import { ExperienceThumbnail } from "@/components/experiences/experience-thumbnail";
 import { ExperienceStatusPill } from "@/components/experiences/status-pill";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
@@ -101,14 +102,7 @@ export function ExperiencesDashboard() {
                 )}
               >
                 <div className="relative aspect-[2.4/1] bg-black/50">
-                  {exp.poster_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={exp.poster_url} alt="" className="size-full object-cover opacity-90" />
-                  ) : (
-                    <div className="flex size-full items-center justify-center text-[var(--kc-champagne)]/40">
-                      <Film className="size-10" aria-hidden />
-                    </div>
-                  )}
+                  <ExperienceThumbnail url={exp.poster_url} title={exp.title} className="size-full" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[var(--kc-piano)] via-transparent to-transparent" />
                   <div className="absolute left-3 top-3">
                     <ExperienceStatusPill status={exp.status} />

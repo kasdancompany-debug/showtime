@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Copy, Monitor, Play } from "lucide-react";
 
-import { ScreenPosterUploadZone } from "@/components/admin/screen-poster-upload-zone";
+import { ExperiencePosterUploadZone } from "@/components/experiences/experience-poster-upload-zone";
 import { InlineHint } from "@/components/admin/show-builder-onboarding";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,18 +123,31 @@ export function ShowBuilderExperiencePanel({
           </select>
         </div>
         <div className="space-y-1.5 border-t border-border/60 pt-3">
-          <Label htmlFor="exp-poster">Walk-in / screen image (optional)</Label>
+          <Label htmlFor="exp-poster">Experience thumbnail</Label>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Shown on the Movie Experiences list and as the walk-in image on the projector before the show starts.
+          </p>
+          <ExperiencePosterUploadZone
+            disabled={metaBusy}
+            experienceId={experienceId}
+            kind="experience"
+            currentUrl={posterDraft}
+            onUploaded={(publicUrl) => {
+              onPosterChange(publicUrl);
+              onPosterApply(publicUrl);
+            }}
+          />
           <Input
             id="exp-poster"
             value={posterDraft}
             onChange={(e) => onPosterChange(e.target.value)}
             disabled={metaBusy}
             className="font-mono text-xs"
-            placeholder="https://… or /screen-posters/…"
+            placeholder="https://… (or upload above)"
           />
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="secondary" disabled={metaBusy} onClick={() => onPosterApply(posterDraft.trim() || null)}>
-              Save image URL
+              Save thumbnail URL
             </Button>
             {posterDraft.trim() ? (
               <Button type="button" size="sm" variant="outline" disabled={metaBusy} onClick={() => onPosterApply(null)}>
@@ -142,13 +155,6 @@ export function ShowBuilderExperiencePanel({
               </Button>
             ) : null}
           </div>
-          <ScreenPosterUploadZone
-            disabled={metaBusy}
-            onUploaded={(publicPath) => {
-              onPosterChange(publicPath);
-              onPosterApply(publicPath);
-            }}
-          />
         </div>
         <Button type="button" size="sm" variant="secondary" className="w-full" disabled={metaBusy} onClick={onSaveMeta}>
           Save experience details

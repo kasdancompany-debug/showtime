@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import { ExperiencePosterUploadZone } from "@/components/experiences/experience-poster-upload-zone";
 import { ExperienceShell } from "@/components/experiences/experience-shell";
+import { normalizePosterImageUrlInput } from "@/lib/showtime/poster-image-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +42,11 @@ export function ExperienceNewForm() {
       const created = await createExperience(supabase, {
         title,
         description,
-        posterUrl: posterUrl.trim() || null,
+        posterUrl:
+          normalizePosterImageUrlInput(
+            posterUrl,
+            typeof window !== "undefined" ? window.location.origin : undefined,
+          ) || null,
         estimatedRuntimeMinutes: runtimeNum && runtimeNum > 0 ? runtimeNum : null,
         status: "draft",
       });
@@ -87,29 +93,33 @@ export function ExperienceNewForm() {
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="exp-runtime">Runtime (minutes)</Label>
-            <Input
-              id="exp-runtime"
-              type="number"
-              min={1}
-              value={runtime}
-              onChange={(e) => setRuntime(e.target.value)}
-              placeholder="90"
-              className="border-[color-mix(in_oklch,var(--kc-gold-line)_25%,transparent)] bg-black/30"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="exp-poster">Poster URL (optional)</Label>
-            <Input
-              id="exp-poster"
-              value={posterUrl}
-              onChange={(e) => setPosterUrl(e.target.value)}
-              placeholder="https://…"
-              className="border-[color-mix(in_oklch,var(--kc-gold-line)_25%,transparent)] bg-black/30"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="exp-runtime">Runtime (minutes)</Label>
+          <Input
+            id="exp-runtime"
+            type="number"
+            min={1}
+            value={runtime}
+            onChange={(e) => setRuntime(e.target.value)}
+            placeholder="90"
+            className="border-[color-mix(in_oklch,var(--kc-gold-line)_25%,transparent)] bg-black/30"
+          />
+        </div>
+
+        <div className="space-y-2 border-t border-[color-mix(in_oklch,var(--kc-gold-line)_20%,transparent)] pt-4">
+          <Label>Thumbnail (optional)</Label>
+          <ExperiencePosterUploadZone
+            kind="experience"
+            currentUrl={posterUrl}
+            onUploaded={(publicUrl) => setPosterUrl(publicUrl)}
+          />
+          <Input
+            id="exp-poster"
+            value={posterUrl}
+            onChange={(e) => setPosterUrl(e.target.value)}
+            placeholder="https://…"
+            className="border-[color-mix(in_oklch,var(--kc-gold-line)_25%,transparent)] bg-black/30 font-mono text-xs"
+          />
         </div>
 
         {error ? <p className="text-sm text-red-300">{error}</p> : null}

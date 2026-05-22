@@ -70,6 +70,7 @@ import {
 import { getExperienceForEvent, type ExperienceRow } from "@/lib/supabase/experiences";
 import { syncEventBuilderToExperience } from "@/lib/showtime/sync-event-to-experience";
 import type { ExperienceStatus } from "@/lib/supabase/database.types";
+import { normalizePosterImageUrlInput } from "@/lib/showtime/poster-image-url";
 import { syncExperienceRehearsalEvent } from "@/lib/showtime/sync-experience-rehearsal";
 import { replaceStoryNodesForEvent } from "@/lib/supabase/story-admin";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
@@ -624,10 +625,11 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
         const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
           title: experienceTitleDraft,
           description: experienceDescDraft,
-          posterUrl: experiencePosterDraft.trim() || null,
+          posterUrl: normalizePosterImageUrlInput(experiencePosterDraft, pageOrigin) || null,
           status: experienceStatusDraft,
         });
         setExperience(updated);
+        setExperiencePosterDraft(updated.poster_url?.trim() ?? "");
         setLastSavedAt(Date.now());
       } else if (event) {
         await replaceStoryNodesForEvent(supabase, event.id, repackSortOrder(nodes), { videoLibrary });
@@ -686,7 +688,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
       await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
         title: experienceTitleDraft,
         description: experienceDescDraft,
-        posterUrl: experiencePosterDraft.trim() || null,
+        posterUrl: normalizePosterImageUrlInput(experiencePosterDraft, pageOrigin) || null,
         status: experienceStatusDraft,
       });
       const synced = await syncExperienceRehearsalEvent(supabase, experience, nodes, videoLibrary);
@@ -730,10 +732,11 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
       const updated = await saveExperienceBuilderSnapshot(supabase, experienceId, nodes, videoLibrary, {
         title: experienceTitleDraft,
         description: experienceDescDraft,
-        posterUrl: experiencePosterDraft.trim() || null,
+        posterUrl: normalizePosterImageUrlInput(experiencePosterDraft, pageOrigin) || null,
         status: experienceStatusDraft,
       });
       setExperience(updated);
+      setExperiencePosterDraft(updated.poster_url?.trim() ?? "");
     } catch (e) {
       setExperienceMetaError(formatBuilderError(e).friendly);
     } finally {
@@ -748,6 +751,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
     experienceDescDraft,
     experiencePosterDraft,
     experienceStatusDraft,
+    pageOrigin,
   ]);
 
   const handleLoadIntoHost = useCallback(() => {

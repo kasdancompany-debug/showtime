@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Copy, Monitor, Radio, Users } from "lucide-react";
 
 import { ScreenPosterUploadZone } from "@/components/admin/screen-poster-upload-zone";
+import { DecoCorners } from "@/components/kasdan/deco-motifs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -314,7 +315,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
   }, []);
 
   const panelClass =
-    "host-operator-panel kc-palace-corners host-operator-glow rounded-xl border border-[color-mix(in_oklch,var(--kc-gold)_14%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_88%,black)] shadow-[var(--kc-shadow-inset-gold)]";
+    "host-operator-panel relative host-operator-glow rounded-xl border border-[color-mix(in_oklch,var(--kc-gold)_14%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_88%,black)] shadow-[var(--kc-shadow-inset-gold)]";
 
   const statLabel = "text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--kc-champagne)]";
   const statValue = "mt-0.5 text-sm font-medium leading-snug text-[var(--kc-cream)]";
@@ -422,6 +423,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
 
       {/* Status board */}
       <section className={cn("mx-3 mt-3 shrink-0 p-3 md:mx-4 md:p-4", panelClass)}>
+        <DecoCorners />
         <div className="grid gap-4 md:grid-cols-12 md:gap-3">
           <div className="md:col-span-4 md:border-r md:border-[var(--host-divider)] md:pr-4">
             <p className={statLabel}>Event code</p>

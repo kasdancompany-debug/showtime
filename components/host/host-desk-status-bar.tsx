@@ -126,7 +126,7 @@ export function HostDeskStatusBar({
             {voteOpen ? (
               <span
                 className={cn(
-                  "ml-2 inline-flex items-center rounded-md bg-[oklch(0.78_0.09_78/0.22)] px-2 py-0.5 font-sans font-semibold text-[oklch(0.93_0.04_82)] ring-1 ring-[oklch(0.82_0.1_78/0.35)]",
+                  "kc-marquee-chase ml-2 inline-flex items-center rounded-md bg-[oklch(0.78_0.09_78/0.22)] px-2 py-0.5 font-sans font-semibold text-[oklch(0.93_0.04_82)]",
                   compact ? "text-[0.65rem]" : "text-xs md:text-sm",
                 )}
               >

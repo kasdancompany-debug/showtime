@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { StudioBadge } from "@/components/kasdan";
+import { DecoChevronDivider } from "@/components/kasdan/deco-motifs";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -175,6 +176,8 @@ export function ShowNightHub() {
           One button: load your show, open the operator desk and projector, arm the opening beat. No Supabase dashboard during the show.
         </p>
       </header>
+
+      <DecoChevronDivider />
 
       <Card className="border-[color-mix(in_oklch,var(--kc-gold-line)_35%,transparent)] bg-[color-mix(in_oklch,var(--kc-panel)_40%,black)] shadow-md ring-1 ring-[color-mix(in_oklch,var(--kc-gold-bright)_12%,transparent)]">
         <CardHeader className="pb-2 text-center sm:text-left">

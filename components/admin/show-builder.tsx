@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 import { StudioBadge } from "@/components/kasdan";
-import { ReelLibraryUploadZone } from "@/components/admin/reel-library-upload-zone";
+import { ReelTranscodeUploadZone } from "@/components/admin/reel-transcode-upload-zone";
 import { ScreenPosterUploadZone } from "@/components/admin/screen-poster-upload-zone";
 import { ShowBuilderExperiencePanel } from "@/components/admin/show-builder-experience-panel";
 import { HowShowtimeWorksPanel, InlineHint } from "@/components/admin/show-builder-onboarding";
@@ -635,7 +635,6 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
         await replaceStoryNodesForEvent(supabase, event.id, repackSortOrder(nodes), { videoLibrary });
         const synced = await syncEventBuilderToExperience(supabase, event, nodes, videoLibrary, {
           title: eventTitleDraft.trim() || event.title,
-          posterUrl: screenIdlePosterDraft.trim() || null,
         });
         setLinkedExperience(synced);
         const ev = await getEventByCode(supabase, event.code);
@@ -1494,8 +1493,8 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     <div className="flex gap-2">
                       <Info className="text-primary mt-0.5 size-3.5 shrink-0" />
                       <p className="text-muted-foreground leading-relaxed">
-                        Use <span className="font-mono text-foreground">{EXAMPLE_PUBLIC_VIDEO_PATH}</span> after you add file or use{" "}
-                        <strong className="text-foreground">drag & drop</strong> below (dev), or paste a direct{" "}
+                        <strong className="text-foreground">Drag & drop</strong> any video file below — it transcodes to a
+                        web-ready MP4 in your browser and uploads automatically, or paste a direct{" "}
                         <span className="font-mono">https://…mp4</span> / <span className="font-mono">.webm</span>. Try{" "}
                         <span className="font-semibold text-foreground">Add sample (HTTPS)</span> for an instant test clip.
                       </p>
@@ -1505,7 +1504,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                       {examplePathCopied ? "Copied" : "Copy example path"}
                     </Button>
                   </section>
-                  {event ? <ReelLibraryUploadZone disabled={busy} onUploaded={onReelFileUploaded} /> : null}
+                  {event ? <ReelTranscodeUploadZone disabled={busy} onUploaded={onReelFileUploaded} /> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={addLibraryVideo} disabled={!canEdit || busy}>
                       <Plus className="mr-1 size-4" />

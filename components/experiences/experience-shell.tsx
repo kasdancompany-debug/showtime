@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { StudioBadge } from "@/components/kasdan";
+import { DecoChevronDivider } from "@/components/kasdan/deco-motifs";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -49,6 +50,7 @@ export function ExperienceShell({
             ← {backLabel}
           </Link>
         </header>
+        {title ? <DecoChevronDivider className="-mt-2" /> : null}
         {children}
       </div>
     </div>

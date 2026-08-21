@@ -3,40 +3,56 @@
 import { useCallback, useRef, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 
+import { transcodeVideoToMp4, type TranscodeProgress } from "@/lib/showtime/video-transcode-client";
+import { uploadReelVideo } from "@/lib/showtime/upload-reel-client";
 import { cn } from "@/lib/utils";
 
-type ReelLibraryUploadZoneProps = {
+type ReelTranscodeUploadZoneProps = {
   disabled: boolean;
-  onUploaded: (publicPath: string) => void;
+  onUploaded: (publicUrl: string) => void;
 };
 
+type Phase = "idle" | "loading" | "encoding" | "uploading";
+
+function phaseLabel(phase: Phase, ratio: number): string {
+  if (phase === "loading") return "Preparing encoder…";
+  if (phase === "encoding") return `Transcoding… ${Math.round(ratio * 100)}%`;
+  if (phase === "uploading") return "Uploading…";
+  return "";
+}
+
 /**
- * Drag / browse → POST to dev-only API → file lands in `public/videos/`.
+ * Drop any video file (including camera-original .MOV) → transcodes to a web-delivery H.264 MP4
+ * entirely in the browser (ffmpeg.wasm, no paid transcoding service) → uploads the result to
+ * Supabase Storage → hands back a public https:// URL. Works in production, not just `npm run dev`
+ * (unlike the old public/videos local-file route this replaces).
  */
-export function ReelLibraryUploadZone({ disabled, onUploaded }: ReelLibraryUploadZoneProps) {
-  const isDev = process.env.NODE_ENV === "development";
+export function ReelTranscodeUploadZone({ disabled, onUploaded }: ReelTranscodeUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [ratio, setRatio] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  const busy = phase !== "idle";
 
   const uploadFile = useCallback(
     async (file: File) => {
       setError(null);
-      setBusy(true);
+      setPhase("loading");
+      setRatio(0);
       try {
-        const fd = new FormData();
-        fd.set("file", file);
-        const res = await fetch("/api/dev/upload-public-video", { method: "POST", body: fd });
-        const data = (await res.json()) as { ok?: boolean; error?: string; publicPath?: string };
-        if (!data.ok || !data.publicPath) {
-          throw new Error(data.error ?? "Upload failed.");
-        }
-        onUploaded(data.publicPath);
+        const { blob, filename } = await transcodeVideoToMp4(file, (p: TranscodeProgress) => {
+          setPhase(p.stage);
+          setRatio(p.ratio);
+        });
+        setPhase("uploading");
+        const publicUrl = await uploadReelVideo(blob, filename);
+        onUploaded(publicUrl);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed.");
       } finally {
-        setBusy(false);
+        setPhase("idle");
         setDragOver(false);
       }
     },
@@ -63,16 +79,6 @@ export function ReelLibraryUploadZone({ disabled, onUploaded }: ReelLibraryUploa
     [disabled, busy, uploadFile],
   );
 
-  if (!isDev) {
-    return (
-      <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
-        <strong className="font-medium text-foreground">Production / hosted build:</strong> this app cannot write to <span className="font-mono">public/videos</span> on the
-        server. Use full <span className="font-mono">https://…</span> links to your CDN or storage bucket, or run <span className="font-mono">npm run dev</span> locally and
-        upload files there.
-      </div>
-    );
-  }
-
   const inactive = disabled || busy;
 
   return (
@@ -80,7 +86,7 @@ export function ReelLibraryUploadZone({ disabled, onUploaded }: ReelLibraryUploa
       <input
         ref={inputRef}
         type="file"
-        accept=".mp4,.webm,video/mp4,video/webm"
+        accept="video/*,.mov"
         className="sr-only"
         tabIndex={-1}
         onChange={onPick}
@@ -115,16 +121,24 @@ export function ReelLibraryUploadZone({ disabled, onUploaded }: ReelLibraryUploa
         )}
       >
         {busy ? (
-          <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Copying to public/videos…
-          </p>
+          <div className="space-y-2">
+            <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {phaseLabel(phase, ratio)}
+            </p>
+            {phase === "encoding" ? (
+              <div className="mx-auto h-1 w-full max-w-[16rem] overflow-hidden rounded-full bg-muted">
+                <div className="h-full bg-primary transition-[width]" style={{ width: `${Math.round(ratio * 100)}%` }} />
+              </div>
+            ) : null}
+          </div>
         ) : (
           <>
             <Upload className="mx-auto mb-2 size-8 text-muted-foreground opacity-70" aria-hidden />
-            <p className="text-sm font-medium text-foreground">Drop MP4 or WebM here</p>
+            <p className="text-sm font-medium text-foreground">Drop any video file here</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              or click to browse — saves into <span className="font-mono">public/videos</span> and fills the path
+              .MOV, .MP4, camera-original — transcodes to web-ready MP4 in your browser, then uploads. No file leaves your
+              device until it&apos;s already a small, playable reel.
             </p>
           </>
         )}

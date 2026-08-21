@@ -51,14 +51,14 @@ describe("displayStoryVideoFilename", () => {
 });
 
 describe("hasAllowedVideoExtension", () => {
-  it("accepts mp4 webm mov in path or URL", () => {
+  it("accepts mp4 and webm in path or URL", () => {
     expect(hasAllowedVideoExtension("https://x.com/a/b.mp4")).toBe(true);
     expect(hasAllowedVideoExtension("https://x.com/v.webm?x=1")).toBe(true);
     expect(hasAllowedVideoExtension("/videos/foo.WEBM")).toBe(true);
-    expect(hasAllowedVideoExtension("/videos/x.mov")).toBe(true);
   });
 
-  it("rejects other extensions", () => {
+  it("rejects .mov and other extensions — camera-original files must be transcoded before upload", () => {
+    expect(hasAllowedVideoExtension("/videos/x.mov")).toBe(false);
     expect(hasAllowedVideoExtension("https://x.com/a.mkv")).toBe(false);
   });
 });

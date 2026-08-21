@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { debounce } from "@/lib/debounce";
 import { useMockEventStore } from "@/lib/store/mock-event-store";
 import { friendlySupabaseError } from "@/lib/supabase/operator-errors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -23,6 +24,9 @@ function resolveScreenRoomCode(): string {
   if (stored.length >= 3) return stored;
   return "";
 }
+
+/** Debounce window for re-fetching vote tallies after a raw `votes` row change. */
+const VOTE_TALLY_DEBOUNCE_MS = 300;
 
 export function useScreenSupabaseDisplay() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -157,6 +161,7 @@ export function useScreenSupabaseDisplay() {
       }, 2000);
     };
 
+    const debouncedRefreshTallies = debounce(refreshTallies, VOTE_TALLY_DEBOUNCE_MS);
     const ch = supabase
       .channel(`screen-room-${event.id}-${rtGeneration}`)
       .on(
@@ -176,9 +181,7 @@ export function useScreenSupabaseDisplay() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "votes", filter: `event_id=eq.${event.id}` },
-        () => {
-          void refreshTallies();
-        },
+        () => debouncedRefreshTallies(),
       )
       .on(
         "postgres_changes",
@@ -208,6 +211,7 @@ export function useScreenSupabaseDisplay() {
       if (retryTimer) window.clearTimeout(retryTimer);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("online", onOnline);
+      debouncedRefreshTallies.cancel();
       void supabase.removeChannel(ch);
     };
   }, [supabase, event?.id, rtGeneration, bootstrap, refreshTallies, refreshCurrentNode, syncSupabaseEventMeta]);

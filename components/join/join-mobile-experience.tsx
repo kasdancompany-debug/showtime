@@ -50,6 +50,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
   const [localErr, setLocalErr] = useState<string | null>(null);
   const [dupHint, setDupHint] = useState<string | null>(null);
   const [online, setOnline] = useState(() => (typeof navigator !== "undefined" ? navigator.onLine : true));
+  const [debugEnabled, setDebugEnabled] = useState(() => process.env.NODE_ENV !== "production");
 
   useEffect(() => {
     const on = () => setOnline(navigator.onLine);
@@ -59,6 +60,10 @@ export function JoinMobileExperience({ eventCode }: Props) {
       window.removeEventListener("online", on);
       window.removeEventListener("offline", on);
     };
+  }, []);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("debug") === "1") setDebugEnabled(true);
   }, []);
 
   useEffect(() => {
@@ -87,7 +92,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
     if (r === "duplicate") setDupHint("You already cast a ballot for this question.");
   }
 
-  const debugFooter = (
+  const debugFooter = debugEnabled ? (
     <JoinDebugFooter
       roomCode={eventCode}
       role="audience"
@@ -99,7 +104,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
       voteBlockReason={j.voteBlockReason}
       joined={Boolean(j.persist?.joined)}
     />
-  );
+  ) : null;
 
   const disconnected = !online || j.reconnecting || j.transport === "channel_error" || j.transport === "timed_out";
   const showTransportBanner = j.supabaseConfigured && j.event && disconnected;

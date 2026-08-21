@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { debounce } from "@/lib/debounce";
 import { broadcastEventSync } from "@/lib/realtime/event-sync";
 import { tryEnsureAnonymousSession } from "@/lib/join/supabase-room";
 import { openOrFocusProjector } from "@/lib/showtime/projector-arm";
@@ -93,6 +94,9 @@ function resolveInitialOperatorCode(boundRoomCode?: string): string {
   }
   return "";
 }
+
+/** Debounce window for re-fetching vote tallies after a raw `votes` row change. */
+const VOTE_TALLY_DEBOUNCE_MS = 300;
 
 export function useOperatorSupabaseRoom(options?: { boundRoomCode?: string }) {
   const boundRoomCode = options?.boundRoomCode?.trim().toUpperCase() ?? "";
@@ -221,6 +225,7 @@ export function useOperatorSupabaseRoom(options?: { boundRoomCode?: string }) {
 
   useEffect(() => {
     if (!supabase || !event?.id) return;
+    const debouncedRefreshTallies = debounce(refreshTallies, VOTE_TALLY_DEBOUNCE_MS);
     const ch = supabase
       .channel(`operator-event-${event.id}`)
       .on(
@@ -237,12 +242,11 @@ export function useOperatorSupabaseRoom(options?: { boundRoomCode?: string }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "votes", filter: `event_id=eq.${event.id}` },
-        () => {
-          void refreshTallies();
-        },
+        () => debouncedRefreshTallies(),
       )
       .subscribe();
     return () => {
+      debouncedRefreshTallies.cancel();
       void supabase.removeChannel(ch);
     };
   }, [supabase, event?.id, refreshTallies, syncSupabaseEventMeta]);

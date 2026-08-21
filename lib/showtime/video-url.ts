@@ -63,7 +63,7 @@ export function displayStoryVideoFilename(videoUrl: string | null | undefined): 
   return segs.length ? (segs[segs.length - 1] ?? t) : t;
 }
 
-const ALLOWED_VIDEO_EXT = /\.(mp4|webm|mov)(\?|#|$)/i;
+const ALLOWED_VIDEO_EXT = /\.(mp4|webm)(\?|#|$)/i;
 
 /** Path or absolute URL pathname must end in .mp4 or .webm (case-insensitive). */
 export function hasAllowedVideoExtension(resolvedUrl: string): boolean {

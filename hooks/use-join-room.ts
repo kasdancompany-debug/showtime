@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { debounce } from "@/lib/debounce";
 import { MOCK_EVENT } from "@/lib/mock-data";
 import { broadcastEventSync, subscribeEventSync, subscribeEventSyncWithStatus } from "@/lib/realtime/event-sync";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -80,6 +81,10 @@ export type JoinTransportStatus =
   | "subscribed"
   | "channel_error"
   | "timed_out";
+
+/** Debounce window for re-fetching vote tallies after a raw `votes` row change — a burst of N
+ *  concurrent votes should trigger one DB read, not N (this hook runs on every audience phone). */
+const VOTE_TALLY_DEBOUNCE_MS = 300;
 
 export function useJoinRoom(eventCodeRaw: string) {
   const code = eventCodeRaw.toUpperCase();
@@ -314,26 +319,29 @@ export function useJoinRoom(eventCodeRaw: string) {
   useEffect(() => {
     if (!supabase || !eventId || isSupabaseHybridMock) return;
 
+    const refetchTallies = debounce(async () => {
+      const ev = remoteEventRef.current;
+      const vid = ev?.current_node_id;
+      if (!vid || ev?.status !== "voting_open") return;
+      try {
+        const t = await fetchVoteTallies(supabase, ev.id, vid);
+        setHostedTallies(t);
+      } catch {
+        /* ignore */
+      }
+    }, VOTE_TALLY_DEBOUNCE_MS);
+
     const channel = supabase
       .channel(`join-votes-${eventId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "votes", filter: `event_id=eq.${eventId}` },
-        async () => {
-          const ev = remoteEventRef.current;
-          const vid = ev?.current_node_id;
-          if (!vid || ev?.status !== "voting_open") return;
-          try {
-            const t = await fetchVoteTallies(supabase, ev.id, vid);
-            setHostedTallies(t);
-          } catch {
-            /* ignore */
-          }
-        },
+        () => refetchTallies(),
       )
       .subscribe();
 
     return () => {
+      refetchTallies.cancel();
       void supabase.removeChannel(channel);
     };
   }, [supabase, eventId, isSupabaseHybridMock, transportRetryNonce]);

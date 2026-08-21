@@ -5,7 +5,7 @@ import { constants as fsConstants } from "fs";
 import { NextResponse } from "next/server";
 
 const MAX_BYTES = 400 * 1024 * 1024; // 400 MB
-const ALLOWED_EXT = new Set([".mp4", ".webm", ".mov"]);
+const ALLOWED_EXT = new Set([".mp4", ".webm"]);
 
 async function fileExists(absolutePath: string): Promise<boolean> {
   try {

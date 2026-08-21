@@ -6,10 +6,26 @@ import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DecoChevronDivider, DecoCorners, LiveDot, type LiveDotStatus } from "@/components/kasdan/deco-motifs";
 import { JoinDebugFooter } from "@/components/join/join-debug-footer";
 import { useJoinMobileVote } from "@/hooks/use-join-mobile-vote";
+import type { JoinMobileTransport } from "@/hooks/use-join-mobile-vote";
 import type { VoteChoice } from "@/types";
 import { cn } from "@/lib/utils";
+
+function liveDotStatus(transport: JoinMobileTransport, reconnecting: boolean): LiveDotStatus | null {
+  if (transport === "na") return null;
+  if (reconnecting || transport === "connecting") return "connecting";
+  if (transport === "channel_error" || transport === "timed_out") return "down";
+  if (transport === "subscribed") return "live";
+  return null;
+}
+
+function liveDotLabel(status: LiveDotStatus): string {
+  if (status === "live") return "Live";
+  if (status === "connecting") return "Reconnecting…";
+  return "Offline";
+}
 
 type Props = { eventCode: string };
 
@@ -33,10 +49,11 @@ function BallotShell({ children, className }: { children: React.ReactNode; class
   return (
     <div
       className={cn(
-        "join-ballot-shell kc-palace-corners relative mx-auto flex w-full max-w-lg flex-col rounded-sm border border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] bg-[color-mix(in_oklch,black_92%,var(--kc-piano))] px-[clamp(1rem,5vw,1.75rem)] py-[clamp(1.25rem,4vh,2rem)] shadow-[inset_0_1px_0_color-mix(in_oklch,var(--kc-gold-bright)_08%,transparent)]",
+        "join-ballot-shell relative mx-auto flex w-full max-w-lg flex-col rounded-sm border border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] bg-[color-mix(in_oklch,black_92%,var(--kc-piano))] px-[clamp(1rem,5vw,1.75rem)] py-[clamp(1.25rem,4vh,2rem)] shadow-[inset_0_1px_0_color-mix(in_oklch,var(--kc-gold-bright)_08%,transparent)]",
         className,
       )}
     >
+      <DecoCorners />
       {children}
     </div>
   );
@@ -91,6 +108,8 @@ export function JoinMobileExperience({ eventCode }: Props) {
     const r = await j.castVote(c);
     if (r === "duplicate") setDupHint("You already cast a ballot for this question.");
   }
+
+  const dotStatus = liveDotStatus(j.transport, j.reconnecting);
 
   const debugFooter = debugEnabled ? (
     <JoinDebugFooter
@@ -175,6 +194,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
       {showTransportBanner ? (
         <div
           role="status"
+          aria-live="polite"
           className={cn(
             "kc-showtime-banner shrink-0 text-center text-[clamp(0.95rem,3.5vw,1.1rem)] font-semibold leading-snug",
             !online ? "kc-showtime-banner--danger" : "kc-showtime-banner--warn",
@@ -195,10 +215,20 @@ export function JoinMobileExperience({ eventCode }: Props) {
             Kasdan Co. · ballot
           </Link>
           <h1 className={cn(goldTitle, "text-center")}>{j.event?.title ?? "Live vote"}</h1>
-          <p className="text-center font-mono text-[clamp(1rem,3.5vw,1.2rem)] tracking-[0.22em] text-[color-mix(in_oklch,var(--kc-gold-bright)_85%,var(--kc-champagne))]">
-            {eventCode.toUpperCase()}
-          </p>
-          <GoldHairline />
+          <div className="flex items-center justify-center gap-2">
+            <p className="text-center font-mono text-[clamp(1rem,3.5vw,1.2rem)] tracking-[0.22em] text-[color-mix(in_oklch,var(--kc-gold-bright)_85%,var(--kc-champagne))]">
+              {eventCode.toUpperCase()}
+            </p>
+            {dotStatus ? (
+              <span className="flex items-center gap-1.5" role="status" aria-label={liveDotLabel(dotStatus)}>
+                <LiveDot status={dotStatus} />
+                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[var(--kc-cream-dim)]">
+                  {liveDotLabel(dotStatus)}
+                </span>
+              </span>
+            ) : null}
+          </div>
+          <DecoChevronDivider />
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -288,6 +318,18 @@ export function JoinMobileExperience({ eventCode }: Props) {
 
           {j.uiPhase === "voting" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
+              {j.voteEligible ? (
+                <div
+                  className="kc-marquee-chase mx-auto shrink-0 rounded-full px-4 py-1"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Voting is open"
+                >
+                  <span className="text-[0.65rem] font-bold uppercase tracking-[0.28em] text-[var(--kc-gold-bright)]">
+                    Voting live
+                  </span>
+                </div>
+              ) : null}
               <p className={cn(questionDisplay, "shrink-0 text-center")}>{j.voteNode?.question?.trim() ?? "—"}</p>
               {!j.voteEligible && j.voteBlockReason ? (
                 <p
@@ -297,7 +339,15 @@ export function JoinMobileExperience({ eventCode }: Props) {
                   {j.voteBlockReason}
                 </p>
               ) : null}
-              {j.voteError ? (
+              {j.voteError && j.votePending ? (
+                <p
+                  className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-semibold text-[var(--kc-gold-bright)]"
+                  role="status"
+                  aria-live="polite"
+                >
+                  {j.voteError}
+                </p>
+              ) : j.voteError ? (
                 <p className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-semibold text-[color-mix(in_oklch,var(--kc-velvet)_40%,var(--kc-cream))]">
                   {j.voteError}{" "}
                   <button type="button" className="text-[var(--kc-gold-bright)] underline underline-offset-2" onClick={j.clearVoteError}>

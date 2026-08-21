@@ -270,6 +270,10 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     setVoteBlockReason(computeVoteBlockReason());
   }, [voteOpen, computeVoteBlockReason]);
 
+  const votePending = Boolean(
+    event?.current_node_id && persist?.voteOutboundStatus?.[event.current_node_id] === "pending",
+  );
+
   const winnerLabel = useMemo(() => {
     if (!event?.winner) return null;
     if (!voteNode) return event.winner === "A" ? "Option A" : "Option B";
@@ -379,7 +383,7 @@ export function useJoinMobileVote(eventCodeRaw: string) {
           await refreshServerBallot();
           return r === "duplicate" ? "duplicate" : "ok";
         }
-        const msg = "Vote could not reach the room. Check your connection and try again.";
+        const msg = "Vote queued — reconnecting to the room, it will send automatically.";
         setVoteError(msg);
         return "queued";
       } catch (e) {
@@ -392,6 +396,49 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     },
     [computeVoteBlockReason, supabase, code, mergePersist, refreshServerBallot],
   );
+
+  /**
+   * A vote that failed delivery is marked "pending" in memory (see castVote's catch path) but
+   * nothing was retrying it automatically — a phone that dropped connection mid-tap would leave
+   * the ballot silently unsent until the attendee noticed and tapped again. Retry it ourselves
+   * whenever the network comes back or the realtime channel resubscribes, using the same
+   * participant id so the attendee never has to re-enter their name.
+   */
+  const retryPendingVote = useCallback(async () => {
+    const p = persistRef.current;
+    const ev = eventRef.current;
+    if (!supabase || !ev?.current_node_id || !p?.participantId) return;
+    const nodeId = ev.current_node_id;
+    if (p.voteOutboundStatus?.[nodeId] !== "pending") return;
+    const choice = p.votesByNodeId[nodeId];
+    if (!choice) return;
+    try {
+      const r = await attemptHostedVoteDelivery(supabase, {
+        eventId: ev.id,
+        storyNodeId: nodeId,
+        sessionId: p.participantId,
+        choice,
+      });
+      if (r === "ok" || r === "duplicate") {
+        mergePersist(markVoteSynced(p, nodeId));
+        setVoteError(null);
+        await refreshServerBallot();
+      }
+    } catch {
+      /* still pending — next reconnect/online event will retry again */
+    }
+  }, [supabase, mergePersist, refreshServerBallot]);
+
+  useEffect(() => {
+    if (transport !== "subscribed") return;
+    void retryPendingVote();
+  }, [transport, retryPendingVote]);
+
+  useEffect(() => {
+    const onOnline = () => void retryPendingVote();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [retryPendingVote]);
 
   const leaveRoom = useCallback(() => {
     clearRoomParticipant(code);
@@ -461,6 +508,7 @@ export function useJoinMobileVote(eventCodeRaw: string) {
     serverBallot,
     winnerLabel,
     voteSubmitting,
+    votePending,
     transport,
     reconnecting,
     joinRoom,

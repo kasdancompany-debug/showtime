@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DecoProscenium, DecoSunburst } from "@/components/kasdan/deco-motifs";
 import { ScreenFullscreenButton } from "@/components/screen/screen-fullscreen-button";
 import { ScreenHostedVideo } from "@/components/screen/screen-hosted-video";
 import { ScreenTitleCardFrame } from "@/components/screen/screen-title-card-frame";
@@ -58,9 +59,10 @@ function ProjectionCard({
       <ScreenTitleCardFrame
         paddingDensity="compact"
         showInnerRule={showInnerRule}
-        className="flex w-full flex-col items-center text-center"
+        className="flex w-full flex-col items-center overflow-hidden text-center"
       >
-        {children}
+        <DecoSunburst />
+        <div className="relative z-[1] flex w-full flex-col items-center">{children}</div>
       </ScreenTitleCardFrame>
     </div>
   );
@@ -617,12 +619,12 @@ export function ScreenDisplay() {
       {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
 
       {mountVideoStage && ev && resolvedSrc && screen.currentNode ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">
+        <DecoProscenium className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">
           <ScreenHostedVideo
             eventId={ev.id}
             mediaInstanceId={screen.currentNode.id}
             src={resolvedSrc}
-            prefetchSrc={screen.nextReelSrc}
+            prefetchSrcs={screen.prefetchReelSrcs}
             operatorVideoRef={screen.currentNode.video_url ?? ""}
             roomStatus={roomStatus}
             playbackCommand={ev.playback_command}
@@ -632,7 +634,7 @@ export function ScreenDisplay() {
             onEnded={onVideoEnded}
             className="min-h-0 flex-1"
           />
-        </div>
+        </DecoProscenium>
       ) : null}
 
       {!hideMainForPurePlayback ? (

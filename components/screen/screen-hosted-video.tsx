@@ -23,8 +23,8 @@ type Props = {
   /** Supabase `story_nodes.id` — new beat swaps `src` on the same element (no remount flash). */
   mediaInstanceId: string;
   src: string;
-  /** Warm the next reel during winner reveal so branch advance starts without a stall. */
-  prefetchSrc?: string | null;
+  /** Warm candidate reels (both A/B branches while voting, the winner once revealed) so branch advance starts without a stall. */
+  prefetchSrcs?: string[];
   /** Operator-entered URL/path from the story beat (shown on load errors when useful). */
   operatorVideoRef?: string;
   /** Room status for this surface — `load` runs in `ready` too (cue without autoplay). */
@@ -169,7 +169,7 @@ export function ScreenHostedVideo({
   eventId,
   mediaInstanceId,
   src,
-  prefetchSrc = null,
+  prefetchSrcs = [],
   operatorVideoRef = "",
   roomStatus,
   playbackCommand,
@@ -410,16 +410,19 @@ export function ScreenHostedVideo({
 
   return (
     <div className={cn("relative isolate min-h-0 w-full flex-1 bg-black", className, showFaultOverlay && "z-50")}>
-      {prefetchSrc && prefetchSrc !== src ? (
-        <video
-          aria-hidden
-          className="pointer-events-none absolute size-0 overflow-hidden opacity-0"
-          src={prefetchSrc}
-          playsInline
-          muted
-          preload="auto"
-        />
-      ) : null}
+      {prefetchSrcs
+        .filter((s) => s && s !== src)
+        .map((s) => (
+          <video
+            key={s}
+            aria-hidden
+            className="pointer-events-none absolute size-0 overflow-hidden opacity-0"
+            src={s}
+            playsInline
+            muted
+            preload="auto"
+          />
+        ))}
       <video
         ref={ref}
         data-projector-video

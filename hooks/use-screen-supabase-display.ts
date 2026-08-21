@@ -277,6 +277,53 @@ export function useScreenSupabaseDisplay() {
     };
   }, [supabase, event, currentNode]);
 
+  /**
+   * Warm BOTH branch candidates while voting is open — branching is always A/B, so both possible
+   * next reels are already knowable the moment a beat starts. This is what actually removes the
+   * between-beat spinner: by the time the winner is revealed, the browser already has it cached.
+   */
+  const [voteWindowPrefetchSrcs, setVoteWindowPrefetchSrcs] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const ev = event;
+      if (!supabase || !ev || ev.status !== "voting_open" || !currentNode) {
+        if (!cancelled) setVoteWindowPrefetchSrcs([]);
+        return;
+      }
+      const keys = [
+        (currentNode.option_a_next_node_key ?? "").trim(),
+        (currentNode.option_b_next_node_key ?? "").trim(),
+      ].filter(Boolean);
+      if (!keys.length) {
+        if (!cancelled) setVoteWindowPrefetchSrcs([]);
+        return;
+      }
+      try {
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const nodes = await Promise.all(keys.map((k) => getStoryNodeByEventAndKey(supabase, ev.id, k)));
+        if (cancelled) return;
+        const urls = nodes
+          .map((n) => (n ? resolveStoryVideoUrl(n.video_url, origin) : null))
+          .filter((u): u is string => Boolean(u));
+        setVoteWindowPrefetchSrcs(Array.from(new Set(urls)));
+      } catch {
+        if (!cancelled) setVoteWindowPrefetchSrcs([]);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, event, currentNode]);
+
+  /** Prefetch set for the video element: both candidates while voting, the winner once revealed. */
+  const prefetchReelSrcs = useMemo(() => {
+    if (event?.status === "voting_open") return voteWindowPrefetchSrcs;
+    if (event?.status === "winner_revealed" && nextReelSrc) return [nextReelSrc];
+    return [];
+  }, [event?.status, voteWindowPrefetchSrcs, nextReelSrc]);
+
   const winnerLabel = useMemo(() => {
     if (!event?.winner) return null;
     if (!currentNode) return event.winner === "A" ? "Option A" : "Option B";
@@ -305,6 +352,7 @@ export function useScreenSupabaseDisplay() {
     winnerLabel,
     nextCueFilename,
     nextReelSrc,
+    prefetchReelSrcs,
     reload: bootstrap,
   };
 }

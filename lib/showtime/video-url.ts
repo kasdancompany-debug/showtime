@@ -4,7 +4,7 @@
  * Rejects blob: and file:. Normalizes accidental Windows paths pasted from Explorer.
  */
 export function normalizeShowtimeVideoUrlInput(raw: string): string {
-  let t = raw.trim().replace(/^["']+|["']+$/g, "");
+  const t = raw.trim().replace(/^["']+|["']+$/g, "");
   if (!t) return t;
 
   if (/^https?:\/\//i.test(t) || t.startsWith("/")) return t;

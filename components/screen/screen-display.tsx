@@ -59,10 +59,9 @@ function ProjectionCard({
       <ScreenTitleCardFrame
         paddingDensity="compact"
         showInnerRule={showInnerRule}
-        className="flex w-full flex-col items-center overflow-hidden text-center"
+        className="flex w-full flex-col items-center text-center"
       >
-        <DecoSunburst />
-        <div className="relative z-[1] flex w-full flex-col items-center">{children}</div>
+        {children}
       </ScreenTitleCardFrame>
     </div>
   );
@@ -436,16 +435,16 @@ export function ScreenDisplay() {
       <ProjectionCard>
         <ArtDecoDivider className="mb-8" />
         {showPosterHero ? (
-          <div className="relative mb-8 flex max-h-[42vh] w-full max-w-[min(94vw,50rem)] items-center justify-center">
+          <div className="relative mb-8 flex max-h-[64vh] w-full items-center justify-center">
             {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL, any aspect ratio */}
             <img
               src={idlePosterResolved!}
               alt=""
               draggable={false}
-              className="max-h-[42vh] w-auto max-w-full object-contain"
+              className="max-h-[64vh] w-auto max-w-full object-contain"
               style={{
-                maskImage: "radial-gradient(ellipse 88% 88% at 50% 50%, black 74%, transparent 100%)",
-                WebkitMaskImage: "radial-gradient(ellipse 88% 88% at 50% 50%, black 74%, transparent 100%)",
+                maskImage: "radial-gradient(ellipse 90% 90% at 50% 50%, black 78%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(ellipse 90% 90% at 50% 50%, black 78%, transparent 100%)",
               }}
             />
           </div>
@@ -464,34 +463,28 @@ export function ScreenDisplay() {
     const b = screen.currentNode?.option_b_label?.trim() || "Option B";
     body = (
       <div className="flex w-full max-w-[min(96vw,76rem)] flex-col items-stretch px-[clamp(0.75rem,3vw,2rem)]">
-        <ScreenTitleCardFrame
-          paddingDensity="compact"
-          className="relative flex w-full flex-col items-center overflow-hidden py-[clamp(1rem,3vh,2rem)]"
-        >
-          <DecoSunburst />
-          <div className="relative z-[1] flex w-full flex-col items-center">
-            <ArtDecoDivider className="mb-8" />
-            <p className={cn(serifHero, "max-w-[92vw] text-balance text-center")}>{q}</p>
-            {screen.countdownSec != null ? (
-              <p className="mt-6 font-mono text-[clamp(2rem,6vw,4rem)] font-light tabular-nums text-[var(--kc-gold-bright)]">
-                {screen.countdownSec}
-                <span className="text-[0.45em] tracking-normal text-[var(--kc-champagne)]">s</span>
-              </p>
-            ) : null}
-            <div className="mt-10 grid w-full min-h-0 flex-1 grid-cols-1 gap-[clamp(0.75rem,2vw,1.5rem)] md:grid-cols-2">
-              <CinematicChoiceCard
-                letter="Option A"
-                label={a}
-                footer={choiceVoteFooter(screen.tallies.a, screen.pctA, showLiveVoteCounts, "a")}
-              />
-              <CinematicChoiceCard
-                letter="Option B"
-                label={b}
-                footer={choiceVoteFooter(screen.tallies.b, screen.pctB, showLiveVoteCounts, "b")}
-              />
-            </div>
-            <ArtDecoDivider className="mt-10" />
+        <ScreenTitleCardFrame paddingDensity="compact" className="flex w-full flex-col items-center py-[clamp(1rem,3vh,2rem)]">
+          <ArtDecoDivider className="mb-8" />
+          <p className={cn(serifHero, "max-w-[92vw] text-balance text-center")}>{q}</p>
+          {screen.countdownSec != null ? (
+            <p className="mt-6 font-mono text-[clamp(2rem,6vw,4rem)] font-light tabular-nums text-[var(--kc-gold-bright)]">
+              {screen.countdownSec}
+              <span className="text-[0.45em] tracking-normal text-[var(--kc-champagne)]">s</span>
+            </p>
+          ) : null}
+          <div className="mt-10 grid w-full min-h-0 flex-1 grid-cols-1 gap-[clamp(0.75rem,2vw,1.5rem)] md:grid-cols-2">
+            <CinematicChoiceCard
+              letter="Option A"
+              label={a}
+              footer={choiceVoteFooter(screen.tallies.a, screen.pctA, showLiveVoteCounts, "a")}
+            />
+            <CinematicChoiceCard
+              letter="Option B"
+              label={b}
+              footer={choiceVoteFooter(screen.tallies.b, screen.pctB, showLiveVoteCounts, "b")}
+            />
           </div>
+          <ArtDecoDivider className="mt-10" />
         </ScreenTitleCardFrame>
       </div>
     );
@@ -620,6 +613,9 @@ export function ScreenDisplay() {
       )}
     >
       {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
+
+      {/* Full-viewport glow, not confined to the card underneath it — reaches every screen edge, including fullscreen. */}
+      {!hideMainForPurePlayback ? <DecoSunburst /> : null}
 
       {mountVideoStage && ev && resolvedSrc && screen.currentNode
         ? (() => {

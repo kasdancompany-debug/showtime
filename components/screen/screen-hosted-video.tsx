@@ -405,7 +405,13 @@ export function ScreenHostedVideo({
     };
   }, [disarmLoadTimeout]);
 
-  const showFaultOverlay = faultKind !== "none" && faultCopy;
+  /**
+   * `visuallyObscured` means a title slate is covering this element on purpose (pre-show,
+   * between beats) — a load/decode failure underneath it is an operator concern (already
+   * broadcast via reportFault to /host), not something the audience should see dumped on the
+   * projector. Only surface the overlay once the video is actually meant to be visible.
+   */
+  const showFaultOverlay = faultKind !== "none" && faultCopy && !visuallyObscured;
   const showReelPicture = !visuallyObscured && reelRevealed;
 
   return (

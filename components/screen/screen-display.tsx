@@ -436,22 +436,19 @@ export function ScreenDisplay() {
       <ProjectionCard>
         <ArtDecoDivider className="mb-8" />
         {showPosterHero ? (
-          <ScreenTitleCardFrame
-            paddingDensity="compact"
-            padded={false}
-            showInnerRule={false}
-            className="mb-8 w-full max-w-[min(92vw,44rem)] px-1 py-0 sm:px-3"
-          >
-            <div className="relative aspect-video w-full overflow-hidden rounded-sm bg-black/40 shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-line)_50%,transparent)]">
-              {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL */}
-              <img
-                src={idlePosterResolved!}
-                alt=""
-                className="h-full w-full object-contain"
-                draggable={false}
-              />
-            </div>
-          </ScreenTitleCardFrame>
+          <div className="relative mb-8 aspect-video w-full max-w-[min(94vw,50rem)]">
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL */}
+            <img
+              src={idlePosterResolved!}
+              alt=""
+              draggable={false}
+              className="h-full w-full object-cover"
+              style={{
+                maskImage: "radial-gradient(ellipse 72% 72% at 50% 50%, black 55%, transparent 100%)",
+                WebkitMaskImage: "radial-gradient(ellipse 72% 72% at 50% 50%, black 55%, transparent 100%)",
+              }}
+            />
+          </div>
         ) : null}
         <PreShowPresents />
         <p className={cn(serifDisplay, showPosterHero ? "mt-6" : "mt-8", "text-[var(--kc-cream)]")}>
@@ -618,24 +615,36 @@ export function ScreenDisplay() {
     >
       {!blockingLoad && !disconnected ? <ScreenFullscreenButton /> : null}
 
-      {mountVideoStage && ev && resolvedSrc && screen.currentNode ? (
-        <DecoProscenium className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">
-          <ScreenHostedVideo
-            eventId={ev.id}
-            mediaInstanceId={screen.currentNode.id}
-            src={resolvedSrc}
-            prefetchSrcs={screen.prefetchReelSrcs}
-            operatorVideoRef={screen.currentNode.video_url ?? ""}
-            roomStatus={roomStatus}
-            playbackCommand={ev.playback_command}
-            playbackCommandId={ev.playback_command_id}
-            startPositionSeconds={ev.playback_position_seconds ?? 0}
-            visuallyObscured={videoBehindSlate}
-            onEnded={onVideoEnded}
-            className="min-h-0 flex-1"
-          />
-        </DecoProscenium>
-      ) : null}
+      {mountVideoStage && ev && resolvedSrc && screen.currentNode
+        ? (() => {
+            const videoEl = (
+              <ScreenHostedVideo
+                eventId={ev.id}
+                mediaInstanceId={screen.currentNode.id}
+                src={resolvedSrc}
+                prefetchSrcs={screen.prefetchReelSrcs}
+                operatorVideoRef={screen.currentNode.video_url ?? ""}
+                roomStatus={roomStatus}
+                playbackCommand={ev.playback_command}
+                playbackCommandId={ev.playback_command_id}
+                startPositionSeconds={ev.playback_position_seconds ?? 0}
+                visuallyObscured={videoBehindSlate}
+                onEnded={onVideoEnded}
+                className="min-h-0 flex-1"
+              />
+            );
+            // Video intentionally hidden behind a title slate (pre-show, between beats) —
+            // priming/preloading still runs, but the proscenium frame has nothing to frame yet,
+            // so skip the decoration rather than show gold corners floating under the slate.
+            return videoBehindSlate ? (
+              <div className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">{videoEl}</div>
+            ) : (
+              <DecoProscenium className="pointer-events-none absolute inset-0 z-10 flex min-h-0 flex-col">
+                {videoEl}
+              </DecoProscenium>
+            );
+          })()
+        : null}
 
       {!hideMainForPurePlayback ? (
         <main className="relative z-20 flex min-h-0 w-full flex-1 flex-col items-center justify-center overflow-hidden px-2 pt-[clamp(0.75rem,2vh,1.25rem)] [padding-bottom:max(4.25rem,env(safe-area-inset-bottom))]">

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { FolderOpen, Loader2, Upload } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { transcodeVideoToMp4, type TranscodeProgress } from "@/lib/showtime/video-transcode-client";
 import { uploadReelVideo } from "@/lib/showtime/upload-reel-client";
 import { cn } from "@/lib/utils";
@@ -93,17 +94,6 @@ export function ReelTranscodeUploadZone({ disabled, onUploaded }: ReelTranscodeU
         disabled={inactive}
       />
       <div
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            if (!inactive) inputRef.current?.click();
-          }
-        }}
-        onClick={() => {
-          if (!inactive) inputRef.current?.click();
-        }}
         onDragEnter={(e) => {
           e.preventDefault();
           if (!inactive) setDragOver(true);
@@ -115,8 +105,8 @@ export function ReelTranscodeUploadZone({ disabled, onUploaded }: ReelTranscodeU
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         className={cn(
-          "cursor-pointer rounded-lg border-2 border-dashed px-3 py-4 text-center transition-colors",
-          inactive ? "cursor-not-allowed opacity-50" : "hover:border-primary/50 hover:bg-primary/5",
+          "rounded-lg border-2 border-dashed px-3 py-4 text-center transition-colors",
+          inactive ? "opacity-50" : "",
           dragOver && !inactive ? "border-primary bg-primary/10" : "border-border bg-muted/20",
         )}
       >
@@ -135,11 +125,22 @@ export function ReelTranscodeUploadZone({ disabled, onUploaded }: ReelTranscodeU
         ) : (
           <>
             <Upload className="mx-auto mb-2 size-8 text-muted-foreground opacity-70" aria-hidden />
-            <p className="text-sm font-medium text-foreground">Drop any video file here</p>
+            <p className="text-sm font-medium text-foreground">Drag & drop a video file here</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               .MOV, .MP4, camera-original — transcodes to web-ready MP4 in your browser, then uploads. No file leaves your
               device until it&apos;s already a small, playable reel.
             </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={inactive}
+              onClick={() => inputRef.current?.click()}
+              className="mt-3"
+            >
+              <FolderOpen className="mr-1.5 size-3.5" />
+              Choose video file
+            </Button>
           </>
         )}
       </div>

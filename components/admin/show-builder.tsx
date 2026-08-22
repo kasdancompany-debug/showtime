@@ -1504,7 +1504,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                       {examplePathCopied ? "Copied" : "Copy example path"}
                     </Button>
                   </section>
-                  {event ? <ReelTranscodeUploadZone disabled={busy} onUploaded={onReelFileUploaded} /> : null}
+                  {canEdit ? <ReelTranscodeUploadZone disabled={busy} onUploaded={onReelFileUploaded} /> : null}
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="secondary" onClick={addLibraryVideo} disabled={!canEdit || busy}>
                       <Plus className="mr-1 size-4" />

@@ -753,7 +753,9 @@ html.showtime.dark {
 .kc-sunburst {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  /* Above the video stage's opaque black backdrop (z-10, present even when idle/obscured
+     behind a slate) but below the actual title/content layer (z-20). */
+  z-index: 15;
   pointer-events: none;
   display: flex;
   align-items: center;

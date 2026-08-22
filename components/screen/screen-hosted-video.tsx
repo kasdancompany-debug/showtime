@@ -39,14 +39,14 @@ type Props = {
 };
 
 function readFitPref(): "contain" | "cover" {
-  if (typeof window === "undefined") return "contain";
+  if (typeof window === "undefined") return "cover";
   try {
     const v = window.localStorage.getItem(FIT_LS_KEY);
-    if (v === "cover") return "cover";
+    if (v === "contain") return "contain";
   } catch {
     /* ignore */
   }
-  return "contain";
+  return "cover";
 }
 
 function mapMediaErrorMessage(el: HTMLVideoElement): { headline: string; hint: string; kind: ScreenVideoFaultKind } {
@@ -181,7 +181,7 @@ export function ScreenHostedVideo({
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
   const client = useMemo(() => createSupabaseBrowserClient(), []);
-  const [objectFit, setObjectFit] = useState<"contain" | "cover">("contain");
+  const [objectFit, setObjectFit] = useState<"contain" | "cover">("cover");
   const [faultKind, setFaultKind] = useState<ScreenVideoFaultKind>("none");
   const [faultCopy, setFaultCopy] = useState<{ headline: string; hint: string } | null>(null);
   const [reelRevealed, setReelRevealed] = useState(false);

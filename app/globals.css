@@ -689,16 +689,15 @@ html.showtime.dark {
   position: relative;
 }
 
+/* Thin outline only — must not eat into the picture now that video fills edge-to-edge (no letterboxing). */
 .kc-proscenium::before {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 2;
-  border: 2px solid color-mix(in oklch, var(--kc-gold-bright) 88%, transparent);
-  box-shadow: inset 0 0 0 6px color-mix(in oklch, var(--kc-piano) 92%, transparent),
-    inset 0 0 0 8px color-mix(in oklch, var(--kc-gold-bright) 75%, transparent),
-    0 0 32px color-mix(in oklch, var(--kc-gold) 20%, transparent);
+  border: 2px solid color-mix(in oklch, var(--kc-gold-bright) 82%, transparent);
+  box-shadow: 0 0 24px color-mix(in oklch, var(--kc-gold) 16%, transparent);
 }
 
 /** Corner-flourish-only variant (no proscenium border) — drop inside any `position: relative` card. */

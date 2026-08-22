@@ -168,43 +168,43 @@ html.showtime.dark {
 /* ——— Cinema lobby · restrained piano / gold / velvet (modern software) ——— */
 
 .kasdan-hollywood {
-  /* Surfaces */
-  --kc-piano: oklch(0.076 0.007 280);
-  --kc-panel: oklch(0.125 0.018 54);
-  --kc-panel-elevated: oklch(0.158 0.022 52);
-  /* Metal */
-  --kc-gold: oklch(0.58 0.034 76);
-  --kc-gold-bright: oklch(0.74 0.052 78);
-  --kc-gold-line: oklch(0.62 0.032 78 / 0.32);
+  /* Surfaces — true black-lacquer, not brown: very low chroma, cool undertone, gold does the color work */
+  --kc-piano: oklch(0.058 0.009 278);
+  --kc-panel: oklch(0.115 0.011 72);
+  --kc-panel-elevated: oklch(0.155 0.013 72);
+  /* Metal — real brass/champagne gradient, not desaturated grey */
+  --kc-gold: oklch(0.66 0.13 78);
+  --kc-gold-bright: oklch(0.81 0.125 85);
+  --kc-gold-line: oklch(0.71 0.115 80 / 0.48);
   /* Moulin warmth — accents only */
   --kc-velvet: oklch(0.4 0.112 22);
   --kc-velvet-deep: oklch(0.28 0.09 20);
   --kc-danger: oklch(0.5 0.125 24);
   /* Type */
   --kc-ivory: oklch(0.97 0.012 92);
-  --kc-champagne: oklch(0.72 0.028 88);
+  --kc-champagne: oklch(0.8 0.045 84);
 
   /* Legacy names (existing TSX / components) */
   --kc-bg-deep: var(--kc-piano);
-  --kc-midnight: oklch(0.062 0.006 280);
+  --kc-midnight: oklch(0.045 0.008 278);
   --kc-espresso: var(--kc-panel);
   --kc-cream: var(--kc-ivory);
   --kc-cream-dim: var(--kc-champagne);
   --kc-parchment: oklch(0.92 0.018 92);
   --kc-burgundy: var(--kc-velvet-deep);
   --kc-burgundy-deep: oklch(0.22 0.07 20);
-  --kc-gold-deep: oklch(0.48 0.032 74);
+  --kc-gold-deep: oklch(0.5 0.11 72);
   --kc-gold-muted: var(--kc-gold);
   --kc-gold-faint: color-mix(in oklch, var(--kc-gold-line) 50%, transparent);
-  --kc-amber-glow: oklch(0.76 0.055 78);
-  --kc-brass-mid: oklch(0.62 0.04 76);
-  --kc-brass-deep: oklch(0.48 0.03 72);
-  --kc-brass-dark: oklch(0.36 0.028 70);
+  --kc-amber-glow: oklch(0.83 0.115 85);
+  --kc-brass-mid: oklch(0.62 0.12 76);
+  --kc-brass-deep: oklch(0.48 0.11 72);
+  --kc-brass-dark: oklch(0.36 0.09 68);
   --kc-coral-theatre: oklch(0.48 0.12 24);
   --kc-teal-theatre: oklch(0.52 0.08 185);
 
-  --kc-shadow-card: 0 16px 44px oklch(0 0 0 / 0.4);
-  --kc-shadow-inset-gold: inset 0 1px 0 oklch(0.78 0.04 78 / 0.1);
+  --kc-shadow-card: 0 16px 44px oklch(0 0 0 / 0.55);
+  --kc-shadow-inset-gold: inset 0 1px 0 oklch(0.83 0.11 85 / 0.16);
 
   font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
 
@@ -216,11 +216,11 @@ html.showtime.dark {
   --popover-foreground: var(--kc-ivory);
   --primary: var(--kc-gold);
   --primary-foreground: var(--kc-piano);
-  --secondary: oklch(0.2 0.018 52);
+  --secondary: oklch(0.185 0.013 72);
   --secondary-foreground: var(--kc-ivory);
-  --muted: oklch(0.19 0.018 52);
+  --muted: oklch(0.175 0.012 72);
   --muted-foreground: var(--kc-champagne);
-  --accent: oklch(0.22 0.022 52);
+  --accent: oklch(0.205 0.014 72);
   --accent-foreground: var(--kc-ivory);
   --destructive: var(--kc-danger);
   --destructive-foreground: var(--kc-ivory);
@@ -695,9 +695,10 @@ html.showtime.dark {
   inset: 0;
   pointer-events: none;
   z-index: 2;
-  border: 1px solid color-mix(in oklch, var(--kc-gold-line) 85%, transparent);
-  box-shadow: inset 0 0 0 5px color-mix(in oklch, var(--kc-piano) 92%, transparent),
-    inset 0 0 0 6px color-mix(in oklch, var(--kc-gold-line) 60%, transparent);
+  border: 2px solid color-mix(in oklch, var(--kc-gold-bright) 88%, transparent);
+  box-shadow: inset 0 0 0 6px color-mix(in oklch, var(--kc-piano) 92%, transparent),
+    inset 0 0 0 8px color-mix(in oklch, var(--kc-gold-bright) 75%, transparent),
+    0 0 32px color-mix(in oklch, var(--kc-gold) 20%, transparent);
 }
 
 /** Corner-flourish-only variant (no proscenium border) — drop inside any `position: relative` card. */
@@ -766,12 +767,12 @@ html.showtime.dark {
   aspect-ratio: 1;
   background: repeating-conic-gradient(
     from 0deg,
-    color-mix(in oklch, var(--kc-gold-bright) 7%, transparent) 0deg 1.2deg,
-    transparent 1.2deg 9deg
+    color-mix(in oklch, var(--kc-gold-bright) 20%, transparent) 0deg 1.4deg,
+    transparent 1.4deg 9deg
   );
   border-radius: 9999px;
-  mask-image: radial-gradient(circle, black 0%, black 28%, transparent 68%);
-  -webkit-mask-image: radial-gradient(circle, black 0%, black 28%, transparent 68%);
+  mask-image: radial-gradient(circle, black 0%, black 32%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle, black 0%, black 32%, transparent 72%);
 }
 
 @media (prefers-reduced-motion: no-preference) {

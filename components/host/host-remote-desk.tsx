@@ -971,6 +971,10 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                 { id: "sound", label: "House sound and video levels checked with a short play." },
                 { id: "phones", label: "Join URL opens on a test phone; vote UI readable from back row." },
                 { id: "override", label: "Operators know where Force A / Force B is (tie or outage plan)." },
+                { id: "reel_formats", label: "Every reel in the library is .mp4 or .webm — no .mov (check Show builder)." },
+                { id: "debug_off", label: "Loaded /join/<code> on a phone and confirmed no debug footer shows." },
+                { id: "join_domain", label: "QR / join link points at kasdanshowtime.com, not a preview/vercel.app URL." },
+                { id: "connection_dot", label: "Test phone's connection dot is steady (not amber/pulsing) before doors open." },
               ].map((row) => (
                 <li key={row.id} className="flex gap-2">
                   <label className="flex cursor-pointer gap-2">

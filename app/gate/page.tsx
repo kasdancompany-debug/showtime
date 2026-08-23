@@ -47,17 +47,16 @@ export default function GatePage() {
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--kc-piano)] px-6 text-[var(--kc-cream)]">
       <DecoSunburst />
 
-      <div className="relative z-[1] flex w-full max-w-md flex-col items-center text-center">
-        <p className="text-[0.7rem] font-bold uppercase tracking-[0.5em] text-[var(--kc-champagne)]">Kasdan Showtime</p>
+      <div className="relative z-[1] flex w-full max-w-2xl flex-col items-center px-4 text-center">
         <h1
           className={cn(
-            "mt-4 font-heading text-[clamp(2.75rem,9vw,4.5rem)] font-normal leading-[1.02] tracking-tight text-[var(--kc-gold-bright)]",
+            "whitespace-nowrap font-heading text-[clamp(1.9rem,7.5vw,4rem)] font-normal leading-[1.02] tracking-tight text-[var(--kc-gold-bright)]",
             "drop-shadow-[0_0_38px_color-mix(in_oklch,var(--kc-gold-bright)_38%,transparent)]",
           )}
         >
           Kasdan Showtime
         </h1>
-        <p className="mt-3 text-[0.68rem] font-bold uppercase tracking-[0.42em] text-[var(--kc-champagne)]">
+        <p className="mt-4 text-[0.68rem] font-bold uppercase tracking-[0.42em] text-[var(--kc-champagne)]">
           Operator access
         </p>
 

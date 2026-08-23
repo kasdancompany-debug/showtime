@@ -28,7 +28,7 @@ export function StudioBadge({ className, showSeal = false, href }: Props) {
   const inner = (
     <>
       <span className="font-[family-name:var(--font-ui)] text-[0.6875rem] font-medium uppercase tracking-[0.2em] text-[oklch(0.88_0.03_85)]">
-        Kasdan Co.
+        Kasdan Showtime
       </span>
       {showSeal ? (
         <span className="select-none text-[0.5rem] leading-none text-[oklch(0.65_0.02_85)] opacity-50" aria-hidden>

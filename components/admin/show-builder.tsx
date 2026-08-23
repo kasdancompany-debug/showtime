@@ -1038,7 +1038,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
           <p className="text-muted-foreground text-xs sm:text-sm">
             {isExperienceMode
               ? "Same editor as Edit show — save your graph here, rehearse at home, launch the identical beats at the venue."
-              : "Kasdan Co. Showtime — cue your live cinema night, reels, branches, and booth notes in one place."}
+              : "Kasdan Showtime — cue your live cinema night, reels, branches, and booth notes in one place."}
           </p>
           <InlineHint className="mt-1.5">
             {isExperienceMode ? (

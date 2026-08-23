@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 /**
 
- * Wraps Showtime surfaces with Kasdan Co. Hollywood CSS variables and base typography.
+ * Wraps Showtime surfaces with Kasdan Showtime Hollywood CSS variables and base typography.
 
  */
 

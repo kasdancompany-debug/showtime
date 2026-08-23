@@ -68,7 +68,7 @@ function ProjectionCard({
 }
 
 function PreShowPresents() {
-  return <p className={cn(eyebrow, "text-[var(--kc-champagne)]")}>Kasdan Co. presents</p>;
+  return <p className={cn(eyebrow, "text-[var(--kc-champagne)]")}>Kasdan Showtime presents</p>;
 }
 
 function PreShowJoinCode({ code }: { code: string }) {
@@ -387,7 +387,7 @@ export function ScreenDisplay() {
           )}
           aria-label="Showtime home"
         >
-          Kasdan Co. presents
+          Kasdan Showtime presents
         </Link>
         <p className={cn(serifDisplay, "mt-10 text-[var(--kc-cream)]")}>Waiting for show</p>
         <p className={cn(bodyLarge, "mt-8 max-w-2xl opacity-90")}>

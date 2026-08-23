@@ -212,7 +212,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
             className="block text-center text-[clamp(0.75rem,2.8vw,0.85rem)] font-semibold uppercase tracking-[0.32em] text-[var(--kc-champagne)] no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_70%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             aria-label="Showtime home"
           >
-            Kasdan Co. · ballot
+            Kasdan Showtime · ballot
           </Link>
           <h1 className={cn(goldTitle, "text-center")}>{j.event?.title ?? "Live vote"}</h1>
           <div className="flex items-center justify-center gap-2">

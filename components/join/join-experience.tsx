@@ -1059,7 +1059,7 @@ function WaitingScreen({
         className="font-mono text-[clamp(0.72rem,3vw,0.85rem)] font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)] no-underline transition-opacity hover:opacity-90 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_70%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--kc-piano)]"
         aria-label="Showtime home"
       >
-        Kasdan Co. presents
+        Kasdan Showtime presents
       </Link>
       <h2 className="mt-5 font-heading text-[clamp(1.5rem,6vw,2.25rem)] font-normal leading-tight tracking-tight text-[var(--kc-cream)]">
         {title}

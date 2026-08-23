@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     template: "%s · Showtime",
   },
   description:
-    "Kasdan Co. presents a live interactive picture — big screen and audience in sync.",
+    "Kasdan Showtime presents a live interactive picture — big screen and audience in sync.",
 };
 
 export default function RootLayout({

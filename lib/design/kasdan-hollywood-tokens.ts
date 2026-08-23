@@ -1,4 +1,4 @@
-/** Kasdan Co. cinema skin — mirrors CSS vars in `globals.css` (`.kasdan-hollywood`, `html.showtime.dark`) */
+/** Kasdan Showtime cinema skin — mirrors CSS vars in `globals.css` (`.kasdan-hollywood`, `html.showtime.dark`) */
 
 export const kcMotion = {
   curtainIn: 0.72,
@@ -9,7 +9,7 @@ export const kcMotion = {
 } as const;
 
 export const kcCopy = {
-  presents: "Kasdan Co. presents",
+  presents: "Kasdan Showtime presents",
   tagline: "A live interactive picture",
   tonightsFeature: "Tonight’s feature",
   nowProjecting: "Now projecting",

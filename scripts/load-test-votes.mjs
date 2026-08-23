@@ -51,13 +51,41 @@ function percentile(sorted, p) {
   return sorted[idx];
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimited(error) {
+  if (!error) return false;
+  if (error.status === 429) return true;
+  return /rate limit/i.test(error.message ?? "");
+}
+
+/** Mirrors lib/join/supabase-room.ts tryEnsureAnonymousSession's retry so this script measures
+ *  what a real (patched) client would actually achieve, not just the first-attempt failure rate. */
+async function signInWithRetry(client, maxAttempts = 5) {
+  let lastError = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      const delay = Math.random() * Math.min(6000, 400 * 2 ** (attempt - 1));
+      await sleep(delay);
+    }
+    const { data, error } = await client.auth.signInAnonymously();
+    if (!error) return { session: data.session, error: null, attempts: attempt + 1 };
+    lastError = error;
+    if (!isRateLimited(error)) break;
+  }
+  return { session: null, error: lastError, attempts: maxAttempts };
+}
+
 async function simulatePhone(index, eventId, nodeId, choice) {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
   const t0 = Date.now();
-  const { data: signIn, error: signInErr } = await client.auth.signInAnonymously();
+  const { session, error: signInErr } = await signInWithRetry(client);
+  const signIn = { session };
   if (signInErr || !signIn.session) {
     return { index, phase: "signin", ok: false, error: signInErr?.message ?? "no session", ms: Date.now() - t0 };
   }

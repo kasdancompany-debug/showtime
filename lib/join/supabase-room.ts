@@ -114,35 +114,73 @@ export type TryAnonymousSessionResult =
   | { ok: true; session: Session }
   | { ok: false; message: string; technical?: string };
 
+function isRateLimitError(error: { status?: number; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.status === 429) return true;
+  return /rate limit/i.test(error.message ?? "");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Full jitter backoff (AWS-style): random(0, base * 2^attempt), capped. */
+function backoffDelayMs(attempt: number): number {
+  const base = 400;
+  const cap = 6000;
+  const max = Math.min(cap, base * 2 ** attempt);
+  return Math.random() * max;
+}
+
 /**
  * Best-effort anonymous session for operator / screen / admin flows.
  * Never throws — callers decide how to surface {@link TryAnonymousSessionResult}.
+ *
+ * Retries on 429 (rate limited): a real audience QR-scan burst — 100+ phones tapping "enter
+ * the room" within the same few seconds, especially when many share one venue-wifi NAT'd IP —
+ * can trip Supabase Auth's anonymous sign-in rate limit. Without a retry, that burst just fails
+ * outright for whoever loses the race; jittered backoff spreads the retries out instead.
  */
-export async function tryEnsureAnonymousSession(client: SupabaseClient<Database>): Promise<TryAnonymousSessionResult> {
+export async function tryEnsureAnonymousSession(
+  client: SupabaseClient<Database>,
+  maxAttempts = 5,
+): Promise<TryAnonymousSessionResult> {
   try {
     const {
       data: { session },
     } = await client.auth.getSession();
     if (session) return { ok: true, session };
 
-    const { data, error } = await client.auth.signInAnonymously();
-    if (error) {
-      const technical = error.message;
-      let message = friendlySupabaseError(error);
-      if (/anonymous|Anonymous sign.?ups are disabled|signups not allowed/i.test(technical)) {
-        message =
-          "Anonymous sign-in is turned off for this Supabase project. Enable Anonymous in Authentication → Providers, or sign in another way.";
+    let lastError: { status?: number; message: string } | null = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) await sleep(backoffDelayMs(attempt - 1));
+
+      const { data, error } = await client.auth.signInAnonymously();
+      if (!error) {
+        if (!data.session) {
+          return {
+            ok: false,
+            message: "Anonymous sign-in did not return a session. Refresh and try again.",
+            technical: "signInAnonymously returned no session",
+          };
+        }
+        return { ok: true, session: data.session };
       }
-      return { ok: false, message, technical };
+
+      lastError = error;
+      if (!isRateLimitError(error)) break;
     }
-    if (!data.session) {
-      return {
-        ok: false,
-        message: "Anonymous sign-in did not return a session. Refresh and try again.",
-        technical: "signInAnonymously returned no session",
-      };
+
+    const error = lastError!;
+    const technical = error.message;
+    let message = friendlySupabaseError(error);
+    if (isRateLimitError(error)) {
+      message = "The room is busy right now — retrying automatically, hang tight.";
+    } else if (/anonymous|Anonymous sign.?ups are disabled|signups not allowed/i.test(technical)) {
+      message =
+        "Anonymous sign-in is turned off for this Supabase project. Enable Anonymous in Authentication → Providers, or sign in another way.";
     }
-    return { ok: true, session: data.session };
+    return { ok: false, message, technical };
   } catch (e) {
     return {
       ok: false,

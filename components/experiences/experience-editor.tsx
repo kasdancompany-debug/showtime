@@ -290,7 +290,7 @@ export function ExperienceEditor({ experienceId }: Props) {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-xl text-[var(--kc-cream)]">Scenes</h2>
+            <h2 className="font-heading text-xl font-extrabold text-[var(--sh-cream)]">Scenes</h2>
             <Button
               type="button"
               variant="outline"
@@ -368,7 +368,7 @@ export function ExperienceEditor({ experienceId }: Props) {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-xl text-[var(--kc-cream)]">Vote moments</h2>
+            <h2 className="font-heading text-xl font-extrabold text-[var(--sh-cream)]">Vote moments</h2>
             <Button
               type="button"
               variant="outline"

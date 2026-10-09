@@ -1217,7 +1217,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
               <Card
                 id="show-builder-event"
                 size="sm"
-                className="border-amber-950/15 bg-gradient-to-br from-card to-amber-950/[0.06] shadow-md ring-amber-950/10"
+                className="border-[var(--sh-line-strong)] bg-gradient-to-br from-card to-[var(--sh-red)]/[0.07] shadow-md ring-0"
               >
                 <CardHeader className="border-b border-border/60 pb-3">
                   <CardTitle className="font-heading text-base">Event</CardTitle>
@@ -1231,8 +1231,8 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     className={cn(
                       "rounded-md border px-3 py-2 text-xs leading-relaxed",
                       event
-                        ? "border-emerald-500/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-50"
-                        : "border-amber-500/35 bg-amber-500/10 text-amber-950 dark:text-amber-50",
+                        ? "border-[oklch(0.62_0.11_175/0.4)] bg-[oklch(0.62_0.11_175/0.12)] text-[oklch(0.9_0.05_165)]"
+                        : "border-[var(--sh-gold)]/45 bg-[var(--sh-gold)]/10 text-[var(--sh-cream)]",
                     )}
                     role="status"
                   >
@@ -1403,12 +1403,12 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     {readinessRows.map((row) => (
                       <li key={row.id} className="flex gap-2 text-sm">
                         {row.ok ? (
-                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
+                          <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[oklch(0.78_0.11_165)]" aria-hidden />
                         ) : (
-                          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+                          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[var(--sh-gold)]" aria-hidden />
                         )}
                         <div>
-                          <p className={cn("font-medium leading-tight", row.ok ? "text-foreground" : "text-amber-950 dark:text-amber-100")}>{row.label}</p>
+                          <p className={cn("font-medium leading-tight", row.ok ? "text-foreground" : "text-[var(--sh-gold)]")}>{row.label}</p>
                           <p className="text-muted-foreground text-xs leading-snug">{row.detail}</p>
                         </div>
                       </li>
@@ -1466,7 +1466,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                 </CardHeader>
                 <CardContent className="space-y-3 pt-3">
                   {!canEdit ? (
-                    <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-950 dark:text-amber-50">
+                    <div className="space-y-2 rounded-md border border-[var(--sh-gold)]/40 bg-[var(--sh-gold)]/10 px-3 py-3 text-xs leading-relaxed text-[var(--sh-cream)]">
                       <p>
                         <strong className="font-semibold">Locked until a show is open.</strong>{" "}
                         {isExperienceMode ? (
@@ -1524,7 +1524,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Reel</span>
                             {usedBy.length > 0 ? (
-                              <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400">
+                              <span className="flex items-center gap-1 text-[10px] text-[oklch(0.78_0.11_165)]">
                                 <CheckCircle2 className="size-3 shrink-0" aria-hidden />
                                 In use · {usedBy.join(", ")}
                               </span>
@@ -1616,7 +1616,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                       className={cn(
                         "flex w-full flex-col rounded-lg border px-3 py-2.5 text-left text-sm transition-all",
                         n.node_key === selectedKey
-                          ? "border-amber-700/50 bg-amber-950/10 shadow-sm ring-1 ring-amber-700/25 dark:bg-amber-950/20"
+                          ? "border-[var(--sh-red)]/60 bg-[var(--sh-red)]/10 shadow-sm ring-1 ring-[var(--sh-red)]/30"
                           : "border-transparent bg-card/80 hover:border-border hover:bg-card",
                       )}
                     >
@@ -1662,11 +1662,11 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
               ) : !selected ? (
                 <p className="text-muted-foreground text-sm">Select a beat in the timeline.</p>
               ) : (
-                <div className="relative mx-auto max-w-2xl space-y-0 border border-amber-950/20 bg-[linear-gradient(to_bottom,oklch(0.99_0.01_85),oklch(0.985_0.005_85))] shadow-[0_1px_0_oklch(0.85_0.02_75)] dark:border-amber-900/30 dark:bg-[linear-gradient(to_bottom,oklch(0.16_0.02_265),oklch(0.14_0.02_265))] dark:shadow-none">
-                  <div className="absolute left-0 top-0 h-full w-1 bg-amber-700/70" aria-hidden />
+                <div className="relative mx-auto max-w-2xl space-y-0 border border-[var(--sh-line-strong)] bg-[var(--sh-ink)]">
+                  <div className="absolute left-0 top-0 h-full w-1 bg-[var(--sh-red)]" aria-hidden />
                   <div className="space-y-6 p-6 pl-8">
-                    <header className="border-b border-dashed border-amber-950/25 pb-4 dark:border-amber-200/15">
-                      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800 dark:text-amber-200/90">Live cinema cue</p>
+                    <header className="border-b border-dashed border-[var(--sh-line-strong)] pb-4">
+                      <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--sh-gold)]">Live cinema cue</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Show{" "}
                         <span className="font-mono text-foreground">
@@ -1764,7 +1764,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                           </Button>
                         </div>
                         {beatTestStatus === "checking" ? <p className="text-muted-foreground text-xs">Checking…</p> : null}
-                        {beatTestStatus === "ok" ? <p className="text-xs font-medium text-emerald-600">Browser can read this file.</p> : null}
+                        {beatTestStatus === "ok" ? <p className="text-xs font-medium text-[oklch(0.78_0.11_165)]">Browser can read this file.</p> : null}
                         {beatTestStatus === "fail" ? <p className="text-destructive text-xs">Could not load metadata — check URL, CORS, and format.</p> : null}
                         {previewBeatOpen && selectedResolvedUrl ? (
                           <video className="aspect-video max-h-48 w-full rounded-md border bg-black" src={selectedResolvedUrl} controls playsInline muted preload="metadata" />
@@ -1878,15 +1878,15 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                       <p className="text-muted-foreground text-sm italic">Ending beat — no vote block on this cue.</p>
                     )}
 
-                    <footer className="border-t border-dashed border-amber-950/25 pt-4 font-mono text-xs leading-relaxed text-muted-foreground dark:border-amber-200/15">
+                    <footer className="border-t border-dashed border-[var(--sh-line-strong)] pt-4 font-mono text-xs leading-relaxed text-muted-foreground">
                       <p>
-                        <span className="text-amber-900/80 dark:text-amber-200/80">ROLL:</span> {operatorLines.current}
+                        <span className="text-[var(--sh-gold)]">ROLL:</span> {operatorLines.current}
                       </p>
                       <p>
-                        <span className="text-amber-900/80 dark:text-amber-200/80">IF A:</span> {operatorLines.ifA}
+                        <span className="text-[var(--sh-gold)]">IF A:</span> {operatorLines.ifA}
                       </p>
                       <p>
-                        <span className="text-amber-900/80 dark:text-amber-200/80">IF B:</span> {operatorLines.ifB}
+                        <span className="text-[var(--sh-gold)]">IF B:</span> {operatorLines.ifB}
                       </p>
                     </footer>
                   </div>
@@ -1898,7 +1898,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                   <h3 className="text-sm font-semibold">Check show</h3>
                   <InlineHint>Catches missing reels, branches, or votes before you save — step 6 in “How Showtime works.”</InlineHint>
                   {validationErrors.length > 0 ? (
-                    <ul className="list-inside list-disc space-y-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+                    <ul className="list-inside list-disc space-y-1 rounded-md border border-[var(--sh-gold)]/45 bg-[var(--sh-gold)]/10 px-3 py-2 text-sm">
                       {validationErrors.map((err, i) => (
                         <li key={i}>{err}</li>
                       ))}
@@ -1907,7 +1907,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                     <p className="text-muted-foreground text-sm">No structural blockers.</p>
                   )}
                   {validationWarnings.length > 0 ? (
-                    <ul className="list-inside list-disc space-y-1 rounded-md border border-sky-500/35 bg-sky-500/10 px-3 py-2 text-sm">
+                    <ul className="list-inside list-disc space-y-1 rounded-md border border-[var(--sh-cream)]/30 bg-[var(--sh-cream)]/[0.06] px-3 py-2 text-sm">
                       {validationWarnings.map((w, i) => (
                         <li key={i}>{w}</li>
                       ))}
@@ -1916,7 +1916,7 @@ export function ShowBuilder({ experienceId }: { experienceId?: string } = {}) {
                   {lastSavedAt ? (
                     <p className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                       <span className="inline-flex items-center gap-1">
-                        <CheckCircle2 className="size-3.5 text-emerald-600" />
+                        <CheckCircle2 className="size-3.5 text-[oklch(0.78_0.11_165)]" />
                         Saved {new Date(lastSavedAt).toLocaleString()}
                       </span>
                       {!isExperienceMode && linkedExperience ? (

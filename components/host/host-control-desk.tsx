@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 
+import { ShowtimeWordmark } from "@/components/brand";
 import { HostLocalPreviewDesk } from "@/components/host/host-local-preview-desk";
 import { HostRemoteDesk } from "@/components/host/host-remote-desk";
 import { useHostSupabaseRoomSync } from "@/hooks/use-host-supabase-room-sync";
@@ -32,9 +33,10 @@ export function HostControlDesk({ boundRoomCode }: { boundRoomCode?: string } = 
         <span className={cn("kc-mode-pill", isLive && "kc-mode-pill--live")}>{isLive ? "Live room" : "Rehearsal"}</span>
         <Link
           href="/"
-          className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--kc-champagne)] transition-colors hover:text-[var(--kc-cream)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--kc-gold-line)]"
+          aria-label="Showtime home"
+          className="transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--sh-cream)]"
         >
-          Showtime
+          <ShowtimeWordmark compact className="text-[1.1rem]" />
         </Link>
       </div>
       {supabase ? <HostRemoteDesk boundRoomCode={boundRoomCode} /> : <HostLocalPreviewDesk />}

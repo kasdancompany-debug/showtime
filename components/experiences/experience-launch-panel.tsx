@@ -151,11 +151,11 @@ export function ExperienceLaunchPanel({ experienceId }: Props) {
       </div>
 
       {exp.status === "archived" ? (
-        <p className="rounded-sm border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        <p className="rounded-sm border border-[var(--sh-gold)]/40 bg-[var(--sh-gold)]/10 px-4 py-3 text-sm text-[var(--sh-cream)]">
           Archived experiences cannot launch. Set status to draft or ready on the edit page.
         </p>
       ) : beatCount === 0 ? (
-        <p className="rounded-sm border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        <p className="rounded-sm border border-[var(--sh-gold)]/40 bg-[var(--sh-gold)]/10 px-4 py-3 text-sm text-[var(--sh-cream)]">
           Add at least one beat in the show builder before launching.{" "}
           <Link href={`/experiences/${experienceId}/edit`} className="underline">
             Edit timeline

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Copy, Monitor, Radio, Users } from "lucide-react";
 
 import { ScreenPosterUploadZone } from "@/components/admin/screen-poster-upload-zone";
-import { DecoCorners } from "@/components/kasdan/deco-motifs";
+import { JoinQr } from "@/components/brand";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -122,7 +122,7 @@ function ConfirmDialog({
       aria-modal="true"
       aria-labelledby="host-confirm-title"
     >
-      <div className="kc-palace-corners w-full max-w-md rounded-2xl border border-[color-mix(in_oklch,var(--kc-gold)_18%,transparent)] bg-[var(--kc-panel)] p-6 shadow-2xl ring-1 ring-[var(--kc-gold-line)]">
+      <div className="kc-palace-corners w-full max-w-md rounded-2xl border border-[color-mix(in_oklch,var(--kc-gold)_18%,transparent)] bg-[var(--kc-panel)] p-6 shadow-2xl ring-1 ring-[var(--sh-line-strong)]">
         <h2 id="host-confirm-title" className="text-lg font-semibold text-[var(--kc-cream)]">
           {title}
         </h2>
@@ -180,9 +180,6 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
 
   const joinUrl =
     joinBase.joinBaseUrl && op.event?.code ? getJoinUrl(op.event.code, joinBase.joinBaseUrl) : "";
-  const qrSrc = joinUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(joinUrl)}`
-    : "";
 
   const [idlePosterDraft, setIdlePosterDraft] = useState("");
 
@@ -357,7 +354,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
 
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--host-divider)] bg-[color-mix(in_oklch,var(--kc-panel)_55%,black)] px-4 py-3 md:px-5">
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--kc-gold-bright)]">Operator desk</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--sh-red-hot)]">Operator desk</p>
           <div className="kc-gold-rule max-w-[min(100%,14rem)] opacity-90" aria-hidden />
           <h1 className="truncate text-sm font-semibold text-[var(--kc-cream)] md:text-base">
             {op.event?.title ?? "Venue live control"}
@@ -423,7 +420,6 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
 
       {/* Status board */}
       <section className={cn("mx-3 mt-3 shrink-0 p-3 md:mx-4 md:p-4", panelClass)}>
-        <DecoCorners />
         <div className="grid gap-4 md:grid-cols-12 md:gap-3">
           <div className="md:col-span-4 md:border-r md:border-[var(--host-divider)] md:pr-4">
             <p className={statLabel}>Event code</p>
@@ -553,14 +549,14 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
               {displayQuestion?.question?.trim() || (op.event ? "No question on this beat." : "—")}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg border border-[color-mix(in_oklch,var(--kc-velvet)_25%,transparent)] bg-black/15 p-2">
-                <p className="text-[10px] font-semibold uppercase text-rose-200/90">Option A</p>
+              <div className="rounded-lg border border-[var(--sh-red)]/45 bg-black/15 p-2">
+                <p className="text-[10px] font-semibold uppercase text-[var(--sh-red-hot)]">Option A</p>
                 <p className="mt-0.5 line-clamp-2 font-medium text-[var(--kc-cream)]">
                   {displayQuestion?.option_a_label?.trim() || "—"}
                 </p>
               </div>
-              <div className="rounded-lg border border-[color-mix(in_oklch,var(--kc-teal-theatre)_22%,transparent)] bg-black/15 p-2">
-                <p className="text-[10px] font-semibold uppercase text-sky-200/90">Option B</p>
+              <div className="rounded-lg border border-[var(--sh-cream)]/35 bg-black/15 p-2">
+                <p className="text-[10px] font-semibold uppercase text-[var(--sh-cream)]">Option B</p>
                 <p className="mt-0.5 line-clamp-2 font-medium text-[var(--kc-cream)]">
                   {displayQuestion?.option_b_label?.trim() || "—"}
                 </p>
@@ -576,13 +572,13 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
               {votePhase}
             </span>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-black/25 py-2 text-center ring-1 ring-[var(--kc-gold-line)]">
+              <div className="rounded-lg bg-black/25 py-2 text-center ring-1 ring-[var(--sh-line-strong)]">
                 <p className="text-[9px] font-medium uppercase text-[var(--kc-champagne)]">Votes A</p>
-                <p className="text-2xl font-bold tabular-nums text-rose-200">{op.tallies.a}</p>
+                <p className="text-2xl font-bold tabular-nums text-[var(--sh-red-hot)]">{op.tallies.a}</p>
               </div>
-              <div className="rounded-lg bg-black/25 py-2 text-center ring-1 ring-[var(--kc-gold-line)]">
+              <div className="rounded-lg bg-black/25 py-2 text-center ring-1 ring-[var(--sh-line-strong)]">
                 <p className="text-[9px] font-medium uppercase text-[var(--kc-champagne)]">Votes B</p>
-                <p className="text-2xl font-bold tabular-nums text-sky-200">{op.tallies.b}</p>
+                <p className="text-2xl font-bold tabular-nums text-[var(--sh-cream)]">{op.tallies.b}</p>
               </div>
             </div>
             <p className={`${statLabel} mt-4`}>Winner</p>
@@ -591,7 +587,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
 
             {op.showForce ? (
               <div className="mt-4 rounded-lg border border-[color-mix(in_oklch,var(--kc-danger)_38%,transparent)] bg-[color-mix(in_oklch,var(--kc-danger)_10%,black)] p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-100/95">Override vote</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sh-gold)]">Override vote</p>
                 <p className="mt-1 text-[10px] leading-snug text-[var(--kc-cream-dim)]">
                   Pick a branch if there are no phones, a tie, or you need a creative override. Confirms before applying.
                 </p>
@@ -600,7 +596,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 flex-1 rounded-lg border-rose-500/50 text-xs text-rose-50 sm:flex-none sm:min-w-[7.5rem]"
+                    className="h-9 flex-1 rounded-lg border-[var(--sh-red)]/60 text-xs text-[var(--sh-cream)] sm:flex-none sm:min-w-[7.5rem]"
                     disabled={op.busy || !op.event}
                     onClick={() => onForce("A")}
                   >
@@ -610,7 +606,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 flex-1 rounded-lg border-sky-500/50 text-xs text-sky-50 sm:flex-none sm:min-w-[7.5rem]"
+                    className="h-9 flex-1 rounded-lg border-[var(--sh-cream)]/45 text-xs text-[var(--sh-cream)] sm:flex-none sm:min-w-[7.5rem]"
                     disabled={op.busy || !op.event}
                     onClick={() => onForce("B")}
                   >
@@ -752,7 +748,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
               type="button"
               variant="outline"
               size="sm"
-              className="w-full rounded-lg border-amber-500/40 text-[11px] text-amber-100"
+              className="w-full rounded-lg border-[var(--sh-gold)]/45 text-[11px] text-[var(--sh-gold)]"
               disabled={op.busy || op.loading || !canMarkEnded || !op.event}
               onClick={() => void op.markVideoEnded()}
             >
@@ -823,7 +819,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
             </div>
             {op.showForce ? (
               <div className="rounded-lg border border-[color-mix(in_oklch,var(--kc-danger)_35%,transparent)] bg-[color-mix(in_oklch,var(--kc-danger)_08%,black)] p-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-100/95">Override (destructive)</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--sh-gold)]">Override (destructive)</p>
                 <p className="mt-1 text-[10px] leading-snug text-[var(--kc-cream-dim)]">
                   Skips the live tally for this beat. Confirm before use.
                 </p>
@@ -832,7 +828,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 rounded-lg border-rose-500/45 text-xs text-rose-100"
+                    className="h-9 rounded-lg border-[var(--sh-red)]/55 text-xs text-[var(--sh-cream)]"
                     disabled={op.busy || !op.event}
                     onClick={() => onForce("A")}
                   >
@@ -842,7 +838,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 rounded-lg border-sky-500/45 text-xs text-sky-100"
+                    className="h-9 rounded-lg border-[var(--sh-cream)]/40 text-xs text-[var(--sh-cream)]"
                     disabled={op.busy || !op.event}
                     onClick={() => onForce("B")}
                   >
@@ -876,7 +872,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition-colors md:text-xs",
               drawer === "rehearsal"
-                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--kc-gold-line)]"
+                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--sh-line-strong)]"
                 : "text-[var(--kc-cream-dim)] ring-1 ring-transparent hover:bg-white/[0.06] hover:text-[var(--kc-champagne)] hover:ring-[color-mix(in_oklch,var(--kc-gold-line)_55%,transparent)]",
             )}
             onClick={() => toggleDrawer("rehearsal")}
@@ -889,7 +885,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition-colors md:text-xs",
               drawer === "qr"
-                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--kc-gold-line)]"
+                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--sh-line-strong)]"
                 : "text-[var(--kc-cream-dim)] ring-1 ring-transparent hover:bg-white/[0.06] hover:text-[var(--kc-champagne)] hover:ring-[color-mix(in_oklch,var(--kc-gold-line)_55%,transparent)]",
             )}
             onClick={() => toggleDrawer("qr")}
@@ -902,7 +898,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition-colors md:text-xs",
               drawer === "story"
-                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--kc-gold-line)]"
+                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--sh-line-strong)]"
                 : "text-[var(--kc-cream-dim)] ring-1 ring-transparent hover:bg-white/[0.06] hover:text-[var(--kc-champagne)] hover:ring-[color-mix(in_oklch,var(--kc-gold-line)_55%,transparent)]",
             )}
             onClick={() => toggleDrawer("story")}
@@ -915,7 +911,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[10px] font-semibold transition-colors md:text-xs",
               drawer === "system"
-                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--kc-gold-line)]"
+                ? "bg-[color-mix(in_oklch,var(--kc-gold)_18%,black)] text-[var(--kc-cream)] ring-1 ring-[var(--sh-line-strong)]"
                 : "text-[var(--kc-cream-dim)] ring-1 ring-transparent hover:bg-white/[0.06] hover:text-[var(--kc-champagne)] hover:ring-[color-mix(in_oklch,var(--kc-gold-line)_55%,transparent)]",
             )}
             onClick={() => toggleDrawer("system")}
@@ -995,10 +991,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
         {drawer === "qr" ? (
           <div className="max-h-[36vh] shrink-0 overflow-y-auto border-t border-[var(--host-divider)] pt-2">
             <div className="flex flex-wrap gap-3">
-              {qrSrc ? (
-                // eslint-disable-next-line @next/next/no-img-element -- external QR API
-                <img src={qrSrc} alt="" className="size-[100px] shrink-0 rounded-lg bg-white p-1 ring-1 ring-white/15 md:size-[120px]" />
-              ) : null}
+              {joinUrl ? <JoinQr url={joinUrl} className="size-[104px] shrink-0 md:size-[124px]" /> : null}
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="flex flex-wrap gap-1.5">
                   <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs" disabled={!joinUrl} onClick={() => void copyJoin()}>
@@ -1016,7 +1009,7 @@ export function HostRemoteDesk({ boundRoomCode }: { boundRoomCode?: string } = {
                 <p className="break-all font-mono text-[9px] text-[var(--kc-cream-dim)]">
                   {joinUrl || "Join link appears after you load an event."}
                 </p>
-                {joinBase.loopbackJoinWarning ? <p className="text-[10px] text-amber-200/90">{LOOPBACK_WARNING}</p> : null}
+                {joinBase.loopbackJoinWarning ? <p className="text-[10px] text-[var(--sh-gold)]">{LOOPBACK_WARNING}</p> : null}
                 {op.event ? (
                   <div className="flex flex-col gap-2 text-[10px] text-[var(--kc-cream-dim)]">
                     <label className="flex cursor-pointer items-start gap-2">

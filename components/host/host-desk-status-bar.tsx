@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Monitor, Radio, Users } from "lucide-react";
 
+import { LiveDot } from "@/components/brand";
 import { StudioBadge } from "@/components/kasdan";
 import type { RealtimeProbeStatus } from "@/hooks/use-event-room-realtime-probe";
 import type { ShowtimeSyncMode } from "@/lib/showtime/sync-mode";
@@ -44,12 +45,12 @@ function realtimeHuman(syncMode: ShowtimeSyncMode, status: RealtimeProbeStatus, 
 }
 
 const statusHue: Record<LiveShowStatus, string> = {
-  draft: "bg-[oklch(0.55_0.02_265)]",
-  waiting: "bg-[oklch(0.62_0.06_78)]",
-  playing: "bg-[oklch(0.72_0.09_78)]",
-  voting: "bg-[oklch(0.58_0.11_175)]",
-  revealing: "bg-[oklch(0.74_0.08_78)]",
-  ended: "bg-[oklch(0.42_0.02_265)]",
+  draft: "bg-[var(--sh-gray)]",
+  waiting: "bg-[var(--sh-gold)]",
+  playing: "bg-[var(--sh-cream)]",
+  voting: "bg-[var(--sh-red)]",
+  revealing: "bg-[var(--sh-red-hot)]",
+  ended: "bg-[var(--sh-ink-2)]",
 };
 
 type Props = {
@@ -85,7 +86,7 @@ export function HostDeskStatusBar({
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 shrink-0 border-b border-[var(--host-divider,oklch(1_0_0/0.07))] bg-[oklch(0.091_0.012_265)]",
+        "sticky top-0 z-50 shrink-0 border-b border-[var(--sh-line)] bg-[var(--sh-black)]",
         compact ? "px-3 py-2.5" : "px-4 py-3 md:px-6",
       )}
     >
@@ -101,7 +102,7 @@ export function HostDeskStatusBar({
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={cn(
-                  "size-2.5 shrink-0 rounded-full ring-2 ring-[oklch(1_0_0/0.12)]",
+                  "size-2.5 shrink-0 rounded-full ring-2 ring-[var(--sh-line)]",
                   statusHue[liveStatus],
                 )}
                 title={liveStatusLabel}
@@ -122,14 +123,15 @@ export function HostDeskStatusBar({
               )}
             >
               Code{" "}
-              <span className="font-semibold text-[oklch(0.88_0.06_82)]">{eventCode}</span>
+              <span className="font-semibold text-[var(--sh-cream)]">{eventCode}</span>
             {voteOpen ? (
               <span
                 className={cn(
-                  "kc-marquee-chase ml-2 inline-flex items-center rounded-md bg-[oklch(0.78_0.09_78/0.22)] px-2 py-0.5 font-sans font-semibold text-[oklch(0.93_0.04_82)]",
+                  "ml-2 inline-flex items-center gap-1.5 rounded-md bg-[var(--sh-red)]/20 px-2 py-0.5 font-sans font-semibold text-[var(--sh-cream)] ring-1 ring-[var(--sh-red)]/60",
                   compact ? "text-[0.65rem]" : "text-xs md:text-sm",
                 )}
               >
+                <LiveDot status="live" className="!size-2" />
                 {compact ? "Vote live" : "Voting live"}
               </span>
             ) : null}
@@ -190,17 +192,17 @@ function StatusChip({
     variant === "ok"
       ? "bg-[oklch(0.62_0.11_175/0.12)] ring-1 ring-[oklch(0.62_0.11_175/0.28)]"
       : variant === "warn"
-        ? "bg-[oklch(0.72_0.12_78/0.08)] ring-1 ring-[oklch(0.78_0.1_78/0.22)]"
+        ? "bg-[rgb(201_169_106/0.08)] ring-1 ring-[rgb(201_169_106/0.3)]"
         : variant === "bad"
-          ? "bg-red-500/10 ring-1 ring-red-500/35"
-          : "bg-[oklch(1_0_0/0.04)] ring-1 ring-[oklch(1_0_0/0.06)]";
+          ? "bg-[rgb(214_40_40/0.12)] ring-1 ring-[rgb(214_40_40/0.5)]"
+          : "bg-white/[0.04] ring-1 ring-white/[0.07]";
   return (
     <div
       className={cn(
         "flex min-w-0 flex-1 flex-col justify-center rounded-lg",
         compact ? "min-h-[2.5rem] px-2 py-1.5 sm:min-w-[4.5rem]" : "min-h-[3.25rem] min-w-[6.75rem] px-3 py-2 sm:min-w-[7.75rem] md:px-3.5",
         surface,
-        emphasize && "bg-[oklch(0.78_0.09_78/0.14)] ring-[oklch(0.82_0.1_78/0.38)]",
+        emphasize && "bg-[rgb(214_40_40/0.14)] ring-[rgb(214_40_40/0.45)]",
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
@@ -218,7 +220,7 @@ function StatusChip({
         className={cn(
           "truncate font-sans font-semibold tabular-nums leading-tight tracking-tight text-[var(--kc-cream)]",
           variant === "ok" && "text-[oklch(0.88_0.06_165)]",
-          variant === "bad" && "text-red-200",
+          variant === "bad" && "text-[var(--sh-red-hot)]",
           compact ? "mt-0.5 text-[0.8rem] sm:text-sm" : "mt-0.5 text-base md:text-lg",
         )}
       >

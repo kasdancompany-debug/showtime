@@ -23,7 +23,7 @@ export function HostOperationalAlerts({ alerts }: { alerts: HostOperationalAlert
           className={cn(
             "rounded-2xl border px-4 py-3 text-sm leading-relaxed",
             a.variant === "danger" && "border-red-500/45 bg-red-500/10 text-red-50",
-            a.variant === "warning" && "border-amber-500/45 bg-amber-500/10 text-amber-50",
+            a.variant === "warning" && "border-[var(--sh-gold)]/50 bg-[var(--sh-gold)]/10 text-[var(--sh-cream)]",
             a.variant === "info" && "border-[var(--bn-line)] bg-card/65 text-muted-foreground",
           )}
         >
@@ -34,7 +34,7 @@ export function HostOperationalAlerts({ alerts }: { alerts: HostOperationalAlert
               <AlertTriangle
                 className={cn(
                   "mt-0.5 size-4 shrink-0",
-                  a.variant === "danger" ? "text-red-300" : "text-amber-300",
+                  a.variant === "danger" ? "text-[var(--sh-red-hot)]" : "text-[var(--sh-gold)]",
                 )}
                 aria-hidden
               />

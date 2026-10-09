@@ -35,7 +35,7 @@ function CheckRow({
 }) {
   const icon =
     state === "pass" ? (
-      <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden />
+      <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[oklch(0.78_0.11_165)]" aria-hidden />
     ) : state === "manual" ? (
       <Circle className="text-muted-foreground mt-0.5 size-5 shrink-0" aria-hidden />
     ) : (
@@ -385,7 +385,7 @@ export default function TestRunPage() {
               </p>
               <p>
                 <span className="text-muted-foreground">Story graph validation:</span>{" "}
-                <span className={graphValid ? "text-emerald-600" : "text-amber-700"}>
+                <span className={graphValid ? "text-[oklch(0.78_0.11_165)]" : "text-[var(--sh-gold)]"}>
                   {graphValid ? "OK" : "Fix graph in Show builder"}
                 </span>
               </p>

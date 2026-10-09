@@ -123,7 +123,7 @@ export function ExperiencesDashboard() {
                 </div>
                 <div className="flex flex-1 flex-col gap-3 p-4">
                   <div>
-                    <h2 className="font-serif text-xl font-light text-[var(--kc-cream)]">{exp.title}</h2>
+                    <h2 className="font-heading text-xl font-extrabold text-[var(--sh-cream)]">{exp.title}</h2>
                     <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--kc-champagne)]">
                       {exp.slug}
                     </p>

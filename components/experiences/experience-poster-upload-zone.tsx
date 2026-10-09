@@ -117,7 +117,7 @@ export function ExperiencePosterUploadZone({
         )}
       </button>
       {success ? (
-        <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+        <p className="flex items-center gap-1.5 text-xs text-[oklch(0.78_0.11_165)]">
           <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
           {success}
         </p>

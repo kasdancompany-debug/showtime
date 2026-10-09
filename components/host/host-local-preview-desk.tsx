@@ -74,11 +74,11 @@ export function HostLocalPreviewDesk() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--host-divider)] bg-[oklch(0.091_0.012_265)] px-3 py-2 md:px-4">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--host-divider)] bg-[var(--sh-black)] px-3 py-2 md:px-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold text-[var(--kc-cream)] md:text-base">{eventTitle}</h1>
           <p className="mt-0.5 truncate font-mono text-[10px] text-[var(--kc-cream-dim)] md:text-xs">
-            <span className="font-semibold text-[oklch(0.88_0.06_82)]">{eventCode}</span>
+            <span className="font-semibold text-[var(--sh-cream)]">{eventCode}</span>
             <span className="text-[var(--kc-cream-dim)]"> · rehearsal</span>
           </p>
         </div>
@@ -86,18 +86,18 @@ export function HostLocalPreviewDesk() {
           <span
             className={cn(
               "inline-flex items-center gap-1 rounded-md px-2 py-1 ring-1",
-              screenOk ? "bg-emerald-950/40 text-emerald-100 ring-emerald-500/25" : "bg-white/5 text-[var(--kc-cream-dim)] ring-white/10",
+              screenOk ? "bg-[oklch(0.62_0.11_175/0.12)] text-[oklch(0.88_0.06_165)] ring-[oklch(0.62_0.11_175/0.3)]" : "bg-white/5 text-[var(--kc-cream-dim)] ring-white/10",
             )}
           >
             <Monitor className="size-3 shrink-0 opacity-90" aria-hidden />
             {screenOk ? "Screen tab open" : "Open /screen tab"}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-[oklch(1_0_0/0.05)] px-2 py-1 ring-1 ring-white/10">
+          <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.05] px-2 py-1 ring-1 ring-white/10">
             <Users className="size-3 opacity-80" aria-hidden />
             <span className="font-semibold tabular-nums text-[var(--kc-cream)]">{votesA + votesB}</span>
             <span className="text-[var(--kc-cream-dim)]">votes</span>
           </span>
-          <span className="inline-flex max-w-[11rem] items-center gap-1 truncate rounded-md bg-amber-950/35 px-2 py-1 text-amber-100/95 ring-1 ring-amber-500/25">
+          <span className="inline-flex max-w-[11rem] items-center gap-1 truncate rounded-md bg-[rgb(201_169_106/0.1)] px-2 py-1 text-[var(--sh-gold)] ring-1 ring-[rgb(201_169_106/0.3)]">
             <Radio className="size-3 shrink-0 opacity-90" aria-hidden />
             <span className="truncate">{snapshot.badgeLabel}</span>
           </span>
@@ -115,14 +115,14 @@ export function HostLocalPreviewDesk() {
         </Link>
       </header>
 
-      <div className="shrink-0 space-y-1 border-b border-white/10 bg-[oklch(0.14_0.02_265)] px-3 py-2 text-[11px] leading-snug text-[oklch(0.9_0.02_95)] md:text-xs">
+      <div className="shrink-0 space-y-1 border-b border-white/10 bg-[var(--sh-ink)] px-3 py-2 text-[11px] leading-snug text-[var(--sh-cream)] md:text-xs">
         <p>
-          <span className="font-semibold text-amber-100/95">{snapshot.badgeLabel}</span>
+          <span className="font-semibold text-[var(--sh-gold)]">{snapshot.badgeLabel}</span>
           {" — "}
           Tabs on this computer share vote state via BroadcastChannel. Add Supabase env vars for phones and other devices.
         </p>
         {snapshot.blockingIssues.length ? (
-          <ul className="list-inside list-disc space-y-1 text-amber-50/95">
+          <ul className="list-inside list-disc space-y-1 text-[var(--sh-cream)]">
             {snapshot.blockingIssues.map((i) => (
               <li key={i.id}>
                 <span className="font-medium">{i.title}.</span> {i.nextStep}
@@ -131,7 +131,7 @@ export function HostLocalPreviewDesk() {
           </ul>
         ) : null}
         {snapshot.warnings.length ? (
-          <ul className="list-inside list-disc space-y-1 text-[oklch(0.88_0.02_95)]">
+          <ul className="list-inside list-disc space-y-1 text-[var(--sh-cream-dim)]">
             {snapshot.warnings.map((i) => (
               <li key={i.id}>
                 <span className="font-medium">{i.title}.</span> {i.nextStep}
@@ -144,7 +144,7 @@ export function HostLocalPreviewDesk() {
       <div className="grid grid-cols-1 gap-2 p-2 lg:grid-cols-2 lg:gap-3 lg:p-3">
         <Card
           size="sm"
-          className="flex min-h-0 flex-col gap-2 overflow-hidden border-white/10 bg-[oklch(0.1_0.012_265)] py-3 shadow-none"
+          className="flex min-h-0 flex-col gap-2 overflow-hidden border-white/10 bg-[var(--sh-ink)] py-3 shadow-none"
         >
           <CardHeader className="shrink-0 space-y-0.5 px-3 pb-0 pt-0">
             <CardTitle className="text-sm font-semibold text-[var(--kc-cream)]">Rehearsal controls</CardTitle>
@@ -179,17 +179,17 @@ export function HostLocalPreviewDesk() {
               </Button>
             </div>
             {voteNode?.question ? (
-              <p className="text-xs leading-relaxed text-[oklch(0.9_0.02_95)]">
-                <span className="font-semibold text-amber-200/90">Active question:</span> {voteNode.question}
+              <p className="text-xs leading-relaxed text-[var(--sh-cream)]">
+                <span className="font-semibold text-[var(--sh-gold)]">Active question:</span> {voteNode.question}
               </p>
             ) : null}
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-lg border border-rose-500/25 bg-rose-950/25 p-2">
-                <p className="text-[10px] uppercase tracking-wide text-rose-200/80">A</p>
+              <div className="rounded-lg border border-[var(--sh-red)]/45 bg-[var(--sh-red)]/10 p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--sh-red-hot)]">A</p>
                 <p className="text-xl font-bold tabular-nums text-white">{votesA}</p>
               </div>
-              <div className="rounded-lg border border-sky-500/25 bg-sky-950/25 p-2">
-                <p className="text-[10px] uppercase tracking-wide text-sky-200/80">B</p>
+              <div className="rounded-lg border border-[var(--sh-cream)]/35 bg-[var(--sh-cream)]/[0.06] p-2">
+                <p className="text-[10px] uppercase tracking-wide text-[var(--sh-cream)]">B</p>
                 <p className="text-xl font-bold tabular-nums text-white">{votesB}</p>
               </div>
             </div>
@@ -198,7 +198,7 @@ export function HostLocalPreviewDesk() {
 
         <Card
           size="sm"
-          className="flex min-h-0 flex-col gap-2 border-white/10 bg-[oklch(0.1_0.012_265)] py-3 shadow-none"
+          className="flex min-h-0 flex-col gap-2 border-white/10 bg-[var(--sh-ink)] py-3 shadow-none"
         >
           <CardHeader className="shrink-0 space-y-0.5 px-3 pb-0 pt-0">
             <CardTitle className="text-sm font-semibold text-[var(--kc-cream)]">Audience join</CardTitle>
@@ -219,7 +219,7 @@ export function HostLocalPreviewDesk() {
                 </Button>
               </div>
             ) : null}
-            <p className="break-all font-mono text-[10px] text-[oklch(0.88_0.02_95)]">{joinUrl || "Join URL unavailable"}</p>
+            <p className="break-all font-mono text-[10px] text-[var(--sh-cream-dim)]">{joinUrl || "Join URL unavailable"}</p>
             <Link
               href={`/join/${MOCK_EVENT.eventCode}`}
               target="_blank"

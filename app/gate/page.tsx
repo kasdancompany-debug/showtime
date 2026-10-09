@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { DecoChevronDivider, DecoCorners, DecoSunburst } from "@/components/kasdan/deco-motifs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { RedRule, ShowtimeLockup, StageBackdrop } from "@/components/brand";
 
 export default function GatePage() {
   const [code, setCode] = useState("");
@@ -44,61 +40,58 @@ export default function GatePage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--kc-piano)] px-6 text-[var(--kc-cream)]">
-      <DecoSunburst />
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--sh-black)] px-6 py-12 text-[var(--sh-cream)]">
+      <StageBackdrop />
 
-      <div className="relative z-[1] flex w-full max-w-2xl flex-col items-center px-4 text-center">
-        <h1
-          className={cn(
-            "whitespace-nowrap font-heading text-[clamp(1.9rem,7.5vw,4rem)] font-normal leading-[1.02] tracking-tight text-[var(--kc-gold-bright)]",
-            "drop-shadow-[0_0_38px_color-mix(in_oklch,var(--kc-gold-bright)_38%,transparent)]",
-          )}
-        >
-          Kasdan Showtime
-        </h1>
-        <p className="mt-4 text-[0.68rem] font-bold uppercase tracking-[0.42em] text-[var(--kc-champagne)]">
-          Operator access
+      <main className="relative z-10 flex w-full max-w-xl flex-col items-center text-center">
+        <div className="sh-rise" style={{ "--d": "0.5s" } as React.CSSProperties}>
+          <ShowtimeLockup className="text-[clamp(3.1rem,11.5vw,8.25rem)]" />
+        </div>
+
+        <RedRule center delay={1.5} className="mt-7" />
+
+        <p className="sh-eyebrow sh-rise mt-6" style={{ "--d": "1.7s" } as React.CSSProperties}>
+          Kasdan Showtime · Operator access
         </p>
 
-        <DecoChevronDivider className="mt-8 max-w-xs" />
+        <form
+          onSubmit={onSubmit}
+          className="sh-ticket sh-rise mt-9 w-full max-w-sm space-y-5 px-7 pb-8 pt-12 text-left"
+          style={{ "--d": "1.9s" } as React.CSSProperties}
+        >
+          <span className="sh-caption absolute left-1/2 top-4 -translate-x-1/2 !text-[0.6rem] !tracking-[0.34em] !text-[var(--sh-gold)]">
+            Admit one
+          </span>
 
-        <form onSubmit={onSubmit} className="relative mt-10 w-full max-w-xs space-y-6 rounded-lg px-8 py-9">
-          <DecoCorners />
-          <div className="space-y-3 text-left">
-            <Label
-              htmlFor="gate-code"
-              className="block text-center text-[0.65rem] font-bold uppercase tracking-[0.4em] text-[var(--kc-champagne)]"
-            >
-              Access code
-            </Label>
-            <Input
-              id="gate-code"
-              inputMode="numeric"
-              autoComplete="off"
-              autoFocus
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className={cn(
-                "h-16 rounded-md border-[color-mix(in_oklch,var(--kc-gold-bright)_38%,transparent)] bg-black/60 text-center font-mono text-[2rem] font-semibold tracking-[0.55em] text-[var(--kc-gold-bright)]",
-                "shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-line)_60%,transparent)] focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-bright)_45%,transparent)]",
-              )}
-              placeholder="····"
-            />
-          </div>
-          {error ? (
-            <p className="text-sm font-semibold text-[color-mix(in_oklch,var(--kc-velvet)_45%,var(--kc-cream))]">{error}</p>
-          ) : null}
-          <Button
-            type="submit"
-            disabled={busy || !code.trim()}
-            className="h-12 w-full rounded-md border border-[color-mix(in_oklch,var(--kc-gold-bright)_55%,transparent)] bg-[color-mix(in_oklch,var(--kc-gold-bright)_18%,black)] text-[0.8rem] font-bold uppercase tracking-[0.3em] text-[var(--kc-gold-bright)] hover:bg-[color-mix(in_oklch,var(--kc-gold-bright)_26%,black)]"
+          <label htmlFor="gate-code" className="sh-caption block text-center !tracking-[0.34em]">
+            Access code
+          </label>
+          <input
+            id="gate-code"
+            className="sh-input text-center font-mono text-[1.75rem] font-medium tracking-[0.5em] indent-[0.5em]"
+            inputMode="numeric"
+            autoComplete="off"
+            autoFocus
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="····"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "gate-error" : undefined}
+          />
+
+          <p
+            id="gate-error"
+            role="alert"
+            className="sh-caption min-h-[1.1rem] text-center !tracking-[0.2em] !text-[var(--sh-red-hot)]"
           >
-            {busy ? "Checking…" : "Enter"}
-          </Button>
-        </form>
+            {error}
+          </p>
 
-        <DecoChevronDivider className="mt-10 max-w-xs" />
-      </div>
+          <button type="submit" disabled={busy || !code.trim()} className="sh-btn sh-btn--red w-full">
+            {busy ? "Checking…" : "Enter"}
+          </button>
+        </form>
+      </main>
     </div>
   );
 }

@@ -1,51 +1,35 @@
 import Link from "next/link";
 
-import { StudioBadge } from "@/components/kasdan";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { RedRule, ShowtimeLockup, StageBackdrop } from "@/components/brand";
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-dvh flex-col bg-[var(--kc-bg-deep)] px-6 py-10 text-[var(--kc-cream)] supports-[min-height:100dvh]:min-h-[100dvh]">
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col">
-        <StudioBadge href="/" showSeal className="w-fit shrink-0" />
-        <p className="mt-8 font-mono text-xs font-semibold uppercase tracking-[0.28em] text-[var(--kc-champagne)]/90">
-          404
-        </p>
-        <h1 className="mt-3 font-heading text-3xl font-normal tracking-tight text-[var(--kc-cream)] sm:text-4xl">
-          This path is not part of Showtime
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--sh-black)] px-6 py-12 text-center text-[var(--sh-cream)] supports-[min-height:100dvh]:min-h-[100dvh]">
+      <StageBackdrop />
+      <main className="relative z-10 flex w-full max-w-xl flex-col items-center">
+        <p className="sh-eyebrow">Error · 404</p>
+        <h1 className="sh-display mt-4 text-[clamp(2.75rem,11vw,6rem)]">
+          Lost the plot<span className="sh-accent">.</span>
         </h1>
-        <p className="mt-5 text-base leading-relaxed text-muted-foreground sm:text-lg">
-          The URL may be mistyped, or the page may have moved. There is no separate documentation site here — use the
-          links below to get back to the live app.
+        <RedRule center className="mt-6" />
+        <p className="mt-6 max-w-md text-base leading-relaxed text-[var(--sh-cream-dim)] sm:text-lg">
+          This path is not part of Showtime. The URL may be mistyped, or the page may have moved.
         </p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-          <Link
-            href="/"
-            className={cn(buttonVariants({ variant: "default" }), "inline-flex min-h-11 justify-center rounded-xl px-6")}
-          >
+        <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Link href="/" className="sh-btn sh-btn--red">
             Home
           </Link>
-          <Link
-            href="/join"
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "inline-flex min-h-11 justify-center rounded-xl border-white/15 px-6",
-            )}
-          >
+          <Link href="/join" className="sh-btn sh-btn--ghost">
             Join with a code
           </Link>
-          <Link
-            href="/host"
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "inline-flex min-h-11 justify-center rounded-xl border-white/15 px-6",
-            )}
-          >
+          <Link href="/host" className="sh-btn sh-btn--ghost">
             Operator
           </Link>
         </div>
-      </div>
+        <div className="mt-14 opacity-80">
+          <ShowtimeLockup className="text-[1.6rem]" />
+        </div>
+      </main>
     </div>
   );
 }

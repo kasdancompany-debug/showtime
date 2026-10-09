@@ -6,7 +6,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#0b0b10",
+  themeColor: "#0b0b0b",
 };
 
 export default function JoinSegmentLayout({ children }: { children: ReactNode }) {

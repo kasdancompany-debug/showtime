@@ -466,17 +466,18 @@ export function ScreenHostedVideo({
       />
 
       {showFaultOverlay ? (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black px-6 text-center">
-          <p className="text-[clamp(1.25rem,4vw,2rem)] font-semibold leading-snug text-red-200/95">{faultCopy.headline}</p>
-          <p className="max-w-lg text-[clamp(0.95rem,2.2vw,1.15rem)] text-neutral-400">{faultCopy.hint}</p>
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-[var(--sh-black)] px-6 text-center">
+          <p className="sh-eyebrow !text-[var(--sh-red-hot)]">Projection check</p>
+          <p className="sh-display text-[clamp(1.75rem,5vw,3.5rem)]">{faultCopy.headline}</p>
+          <p className="max-w-lg text-[clamp(0.95rem,2.2vw,1.15rem)] text-[var(--sh-cream-dim)]">{faultCopy.hint}</p>
           {faultKind !== "autoplay_blocked" ? (
             <div className="max-w-[min(100%,52rem)] space-y-2 text-left">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Tried to open</p>
-              <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-neutral-300">{src}</p>
+              <p className="sh-caption !text-[10px]">Tried to open</p>
+              <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-[var(--sh-cream)]">{src}</p>
               {operatorVideoRef.trim() && operatorVideoRef.trim() !== src ? (
                 <>
-                  <p className="pt-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Cue</p>
-                  <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-neutral-400">{operatorVideoRef.trim()}</p>
+                  <p className="pt-2 sh-caption !text-[10px]">Cue</p>
+                  <p className="break-all font-mono text-[clamp(0.75rem,1.8vw,0.95rem)] text-[var(--sh-cream-dim)]">{operatorVideoRef.trim()}</p>
                 </>
               ) : null}
             </div>

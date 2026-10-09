@@ -3,14 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Ticket } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import { StudioBadge } from "@/components/kasdan";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { RedRule, ShowtimeLockup, StageBackdrop } from "@/components/brand";
 import { normalizeJoinEventCode } from "@/lib/join/get-join-url";
-import { cn } from "@/lib/utils";
 
 export function ManualJoinClient() {
   const router = useRouter();
@@ -28,54 +24,70 @@ export function ManualJoinClient() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-1 flex-col bg-background px-5 py-12 text-foreground supports-[min-height:100dvh]:min-h-[100dvh]">
-      <header className="mb-8 flex items-center justify-between gap-4">
-        <StudioBadge href="/" showSeal />
-        <Link href="/" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-muted-foreground")}>
-          Home
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-[var(--sh-black)] px-6 py-12 text-center text-[var(--sh-cream)] supports-[min-height:100dvh]:min-h-[100dvh]">
+      <StageBackdrop curtains={false} />
+
+      <main className="relative z-10 flex w-full max-w-md flex-col items-center">
+        <Link
+          href="/"
+          aria-label="Showtime home"
+          className="sh-rise focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-[var(--sh-cream)]"
+          style={{ "--d": "0.1s" } as React.CSSProperties}
+        >
+          <ShowtimeLockup className="text-[clamp(2.75rem,15vw,4.75rem)]" />
         </Link>
-      </header>
 
-      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <Ticket className="size-7 text-primary" aria-hidden />
-          <div>
-            <h1 className="text-xl font-semibold">Join</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Enter the code on your ticket or the big screen.</p>
-          </div>
-        </div>
+        <RedRule center delay={0.9} className="mt-6" />
 
-        <div className="space-y-2">
-          <Label htmlFor="manual-code" className="text-xs uppercase tracking-wide text-muted-foreground">
+        <form
+          className="sh-ticket sh-rise mt-8 w-full space-y-5 px-7 pb-8 pt-12 text-left"
+          style={{ "--d": "1s" } as React.CSSProperties}
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <span className="sh-caption absolute left-1/2 top-4 -translate-x-1/2 !text-[0.6rem] !tracking-[0.34em] !text-[var(--sh-gold)]">
+            Admit one
+          </span>
+
+          <label htmlFor="manual-code" className="sh-caption block text-center !tracking-[0.34em]">
             Event code
-          </Label>
-          <Input
+          </label>
+          <input
             id="manual-code"
+            className="sh-input text-center font-mono text-[1.6rem] font-medium uppercase tracking-[0.3em] indent-[0.3em]"
             value={code}
             onChange={(e) => {
               setCode(e.target.value.toUpperCase());
               setErr(null);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
-            }}
-            placeholder="e.g. NIGHT1"
+            placeholder="NIGHT1"
             autoCapitalize="characters"
             autoCorrect="off"
+            autoComplete="off"
             spellCheck={false}
-            className="h-11 font-mono text-lg tracking-widest"
+            aria-invalid={err ? true : undefined}
+            aria-describedby={err ? "manual-code-error" : undefined}
           />
-          {err ? (
-            <p className="text-sm text-destructive" role="alert">
-              {err}
-            </p>
-          ) : null}
-        </div>
 
-        <Button type="button" className="mt-6 h-11 w-full" onClick={submit}>
-          Continue <ArrowRight className="ml-2 size-4" />
-        </Button>
-      </div>
+          <p
+            id="manual-code-error"
+            role="alert"
+            className="sh-caption min-h-[2.2rem] text-center !normal-case !tracking-[0.04em] !text-[var(--sh-red-hot)]"
+          >
+            {err}
+          </p>
+
+          <button type="submit" className="sh-btn sh-btn--red w-full">
+            Continue <ArrowRight className="size-4" aria-hidden />
+          </button>
+        </form>
+
+        <p className="sh-caption sh-rise mt-8" style={{ "--d": "1.3s" } as React.CSSProperties}>
+          Enter the code on your ticket or the big screen.
+        </p>
+      </main>
     </div>
   );
 }

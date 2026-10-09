@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { DecoChevronDivider, DecoCorners, LiveDot, type LiveDotStatus } from "@/components/kasdan/deco-motifs";
+import { LiveDot, RedRule, ShowtimeSymbol, ShowtimeWordmark, StageBackdrop, type LiveDotStatus } from "@/components/brand";
 import { JoinDebugFooter } from "@/components/join/join-debug-footer";
 import { useJoinMobileVote } from "@/hooks/use-join-mobile-vote";
 import type { JoinMobileTransport } from "@/hooks/use-join-mobile-vote";
@@ -29,33 +26,120 @@ function liveDotLabel(status: LiveDotStatus): string {
 
 type Props = { eventCode: string };
 
-const goldTitle = "font-heading text-[clamp(1.35rem,5vw,2.25rem)] font-normal leading-tight tracking-tight text-[var(--kc-gold-bright)]";
-const questionDisplay =
-  "font-heading text-[clamp(1.5rem,6.2vw,2.75rem)] font-normal leading-[1.12] tracking-tight text-[var(--kc-cream)] text-balance";
-const bodyReadout =
-  "text-[clamp(1rem,3.8vw,1.35rem)] font-medium leading-snug text-[color-mix(in_oklch,var(--kc-cream)_88%,transparent)]";
-const finePrint = "text-[clamp(0.95rem,3.2vw,1.1rem)] leading-snug text-[color-mix(in_oklch,var(--kc-champagne)_92%,transparent)]";
+const headline = "sh-display text-[clamp(1.9rem,8.6vw,3.1rem)]";
+const questionDisplay = "sh-display text-[clamp(1.85rem,8.4vw,3.2rem)]";
+const bodyReadout = "text-[clamp(1rem,3.9vw,1.3rem)] leading-snug text-[var(--sh-cream)]/90";
+const finePrint = "text-[clamp(0.9rem,3.4vw,1.05rem)] leading-snug text-[var(--sh-cream-dim)]";
+const fieldLabel = "sh-caption block !text-[0.7rem] !tracking-[0.24em]";
+const errorText = "text-center text-[clamp(0.95rem,3.6vw,1.1rem)] font-medium text-[var(--sh-red-hot)]";
 
-function GoldHairline({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn("h-px w-full max-w-xs bg-gradient-to-r from-transparent via-[var(--kc-gold-line)] to-transparent", className)}
-      aria-hidden
-    />
-  );
-}
-
+/** The audience ticket — a thin Golden Hour outline on black. */
 function BallotShell({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        "join-ballot-shell relative mx-auto flex w-full max-w-lg flex-col rounded-sm border border-[color-mix(in_oklch,var(--kc-gold)_22%,transparent)] bg-[color-mix(in_oklch,black_92%,var(--kc-piano))] px-[clamp(1rem,5vw,1.75rem)] py-[clamp(1.25rem,4vh,2rem)] shadow-[inset_0_1px_0_color-mix(in_oklch,var(--kc-gold-bright)_08%,transparent)]",
+        "join-ballot-shell sh-ticket mx-auto flex w-full max-w-lg flex-col px-[clamp(1.25rem,6vw,2rem)] py-[clamp(1.5rem,4.5vh,2.25rem)]",
         className,
       )}
     >
-      <DecoCorners />
       {children}
     </div>
+  );
+}
+
+/** Every phone screen sits on the same quiet stage. */
+function Stage({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={cn(
+        "join-audience-root relative flex min-h-[100dvh] flex-col overflow-hidden bg-[var(--sh-black)] text-[var(--sh-cream)] selection:bg-[var(--sh-red)]/40",
+        "[touch-action:manipulation]",
+        className,
+      )}
+    >
+      <StageBackdrop curtains={false} />
+      <div className="relative z-10 flex min-h-[100dvh] flex-1 flex-col">{children}</div>
+    </div>
+  );
+}
+
+/** Time left on the open vote — display only; the server decides when the vote closes. */
+function VoteClock({ endsAt }: { endsAt: string | null | undefined }) {
+  const [now, setNow] = useState(() => Date.now());
+  const [span, setSpan] = useState({ key: endsAt ?? "", max: 0 });
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const end = endsAt ? Date.parse(endsAt) : Number.NaN;
+  const left = Number.isFinite(end) ? Math.max(0, Math.ceil((end - now) / 1000)) : null;
+
+  if (span.key !== (endsAt ?? "")) {
+    setSpan({ key: endsAt ?? "", max: left ?? 0 });
+  } else if (left != null && left > span.max) {
+    setSpan({ key: span.key, max: left });
+  }
+
+  if (left == null) return null;
+  const fraction = span.max > 0 ? Math.min(1, left / span.max) : 0;
+  const urgent = left > 0 && left <= 3;
+
+  return (
+    <div className="shrink-0" role="timer" aria-label={`${left} seconds left to vote`}>
+      <div className="h-[3px] w-full bg-[var(--sh-line)]">
+        <div
+          className="h-full origin-left bg-[var(--sh-red)] transition-[width] duration-300 ease-linear"
+          style={{ width: `${fraction * 100}%` }}
+        />
+      </div>
+      <p className={cn("sh-caption mt-2 text-center", urgent && "!text-[var(--sh-red-hot)]")}>
+        {left > 0 ? `Closes in ${left}s` : "Closing…"}
+      </p>
+    </div>
+  );
+}
+
+/** A big, thumb-sized ballot button. A is Showtime Red, B is Reel Cream. */
+function ChoiceButton({
+  letter,
+  label,
+  disabled,
+  onClick,
+}: {
+  letter: "A" | "B";
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const isA = letter === "A";
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={`Vote ${letter}: ${label}`}
+      className={cn(
+        "group relative flex min-h-[min(30vh,13rem)] flex-col items-center justify-center gap-4 overflow-hidden rounded-[6px] px-5 py-8 text-center",
+        "transition-[transform,box-shadow,opacity,filter] duration-200 active:translate-y-px active:brightness-95 sm:min-h-[min(36vh,18rem)]",
+        "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--sh-cream)]",
+        "disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50",
+        isA
+          ? "bg-[var(--sh-red)] text-[var(--sh-on-red)] shadow-[inset_0_1px_0_rgb(255_255_255/0.2),0_18px_44px_-18px_rgb(214_40_40/0.7)]"
+          : "bg-[var(--sh-cream)] text-[var(--sh-black)] shadow-[inset_0_1px_0_rgb(255_255_255/0.6),0_18px_44px_-22px_rgb(247_241_230/0.4)]",
+      )}
+    >
+      <span
+        aria-hidden
+        className="flex size-[clamp(2.75rem,12vw,3.5rem)] items-center justify-center rounded-full border-2 border-current font-heading text-[clamp(1.35rem,6vw,1.8rem)] font-black leading-none"
+      >
+        {letter}
+      </span>
+      <span className="max-w-[18ch] font-heading text-[clamp(1.4rem,5.8vw,2.1rem)] font-extrabold leading-[1.1] text-balance">
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -128,69 +212,60 @@ export function JoinMobileExperience({ eventCode }: Props) {
   const disconnected = !online || j.reconnecting || j.transport === "channel_error" || j.transport === "timed_out";
   const showTransportBanner = j.supabaseConfigured && j.event && disconnected;
 
+  const safePad =
+    "px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]";
+
   if (!j.hydrated || !j.remoteReady) {
     return (
-      <div className="join-audience-root flex min-h-[100dvh] flex-col bg-black text-[var(--kc-cream)]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
-          <div className="kc-loading-theatre w-full max-w-sm">
-            <div className="kc-gold-rule w-full max-w-[10rem] opacity-90" aria-hidden />
+      <Stage>
+        <div className={cn("flex flex-1 flex-col items-center justify-center gap-6", safePad)}>
+          <ShowtimeWordmark className="text-[clamp(2.6rem,13vw,4rem)]" />
+          <div className="kc-loading-theatre !min-h-0 w-full max-w-sm">
             <div className="kc-loading-theatre__bar" aria-hidden />
             <p className={cn(finePrint, "text-center")}>Opening your ballot…</p>
-            <div className="kc-gold-rule w-full max-w-[10rem] opacity-90" aria-hidden />
           </div>
         </div>
         {debugFooter}
-      </div>
+      </Stage>
     );
   }
 
   if (!j.supabaseConfigured) {
     return (
-      <div className="join-audience-root flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-black px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] text-center text-[var(--kc-cream)]">
-        <BallotShell className="gap-4">
-          <p className={cn(goldTitle, "text-[color-mix(in_oklch,var(--kc-velvet)_45%,var(--kc-gold-bright))]")}>Live voting unavailable</p>
-          <p className={bodyReadout}>This phone is not connected to the live show server.</p>
-        </BallotShell>
-        <Link
-          href="/"
-          className={cn(
-            buttonVariants({ variant: "outline", size: "lg" }),
-            "min-h-14 rounded-lg border-[color-mix(in_oklch,var(--kc-gold)_35%,transparent)] px-10 text-lg text-[var(--kc-cream)]",
-          )}
-        >
-          Home
-        </Link>
+      <Stage>
+        <div className={cn("flex flex-1 flex-col items-center justify-center gap-6 text-center", safePad)}>
+          <BallotShell className="gap-4 text-center">
+            <p className={headline}>Live voting unavailable</p>
+            <p className={bodyReadout}>This phone is not connected to the live show server.</p>
+          </BallotShell>
+          <Link href="/" className="sh-btn sh-btn--ghost min-h-14 px-10">
+            Home
+          </Link>
+        </div>
         {debugFooter}
-      </div>
+      </Stage>
     );
   }
 
   if (j.loadError && !j.event && j.remoteReady) {
     return (
-      <div className="join-audience-root flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-black px-6 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] text-center text-[var(--kc-cream)]">
-        <BallotShell className="gap-4">
-          <p className={cn(goldTitle, "text-[color-mix(in_oklch,var(--kc-velvet)_40%,var(--kc-gold-bright))]")}>This code is not open</p>
-          <p className={bodyReadout}>{j.loadError ?? "Unknown error."}</p>
-        </BallotShell>
-        <Button
-          type="button"
-          className="min-h-14 rounded-lg border border-[color-mix(in_oklch,var(--kc-gold)_40%,transparent)] bg-[color-mix(in_oklch,var(--kc-gold-bright)_12%,black)] px-10 text-lg font-semibold text-[var(--kc-cream)] hover:bg-[color-mix(in_oklch,var(--kc-gold-bright)_18%,black)]"
-          onClick={() => window.location.reload()}
-        >
-          Try again
-        </Button>
+      <Stage>
+        <div className={cn("flex flex-1 flex-col items-center justify-center gap-6 text-center", safePad)}>
+          <BallotShell className="gap-4 text-center">
+            <p className={headline}>This code is not open</p>
+            <p className={bodyReadout}>{j.loadError ?? "Unknown error."}</p>
+          </BallotShell>
+          <button type="button" className="sh-btn sh-btn--red min-h-14 px-10" onClick={() => window.location.reload()}>
+            Try again
+          </button>
+        </div>
         {debugFooter}
-      </div>
+      </Stage>
     );
   }
 
   return (
-    <div
-      className={cn(
-        "join-audience-root flex min-h-[100dvh] flex-col overflow-hidden bg-black text-[var(--kc-cream)] selection:bg-[color-mix(in_oklch,var(--kc-gold-bright)_22%,transparent)]",
-        "[touch-action:manipulation]",
-      )}
-    >
+    <Stage>
       {showTransportBanner ? (
         <div
           role="status"
@@ -204,31 +279,28 @@ export function JoinMobileExperience({ eventCode }: Props) {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-[clamp(1rem,5vw,1.5rem)] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <header className="shrink-0 space-y-3 pb-5">
-          <GoldHairline />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-[clamp(1rem,5vw,1.5rem)] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+        <header className="shrink-0 pb-5 text-center">
           <Link
             href="/"
-            className="block text-center text-[clamp(0.75rem,2.8vw,0.85rem)] font-semibold uppercase tracking-[0.32em] text-[var(--kc-champagne)] no-underline transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color-mix(in_oklch,var(--kc-gold-line)_70%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="inline-block focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--sh-cream)]"
             aria-label="Showtime home"
           >
-            Kasdan Showtime · ballot
+            <ShowtimeWordmark compact className="text-[clamp(1.5rem,7.5vw,2.1rem)]" />
           </Link>
-          <h1 className={cn(goldTitle, "text-center")}>{j.event?.title ?? "Live vote"}</h1>
-          <div className="flex items-center justify-center gap-2">
-            <p className="text-center font-mono text-[clamp(1rem,3.5vw,1.2rem)] tracking-[0.22em] text-[color-mix(in_oklch,var(--kc-gold-bright)_85%,var(--kc-champagne))]">
+          <h1 className="sh-display mt-4 text-[clamp(1.25rem,5.6vw,1.9rem)]">{j.event?.title ?? "Live vote"}</h1>
+          <div className="mt-3 flex items-center justify-center gap-3">
+            <p className="font-mono text-[clamp(0.85rem,3.4vw,1rem)] tracking-[0.28em] text-[var(--sh-cream)]">
               {eventCode.toUpperCase()}
             </p>
             {dotStatus ? (
               <span className="flex items-center gap-1.5" role="status" aria-label={liveDotLabel(dotStatus)}>
                 <LiveDot status={dotStatus} />
-                <span className="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[var(--kc-cream-dim)]">
-                  {liveDotLabel(dotStatus)}
-                </span>
+                <span className="sh-caption !text-[0.62rem]">{liveDotLabel(dotStatus)}</span>
               </span>
             ) : null}
           </div>
-          <DecoChevronDivider />
+          <RedRule center className="mt-4" />
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -243,60 +315,61 @@ export function JoinMobileExperience({ eventCode }: Props) {
 
           {j.uiPhase === "form" ? (
             <div className="flex min-h-0 flex-1 flex-col gap-6">
-              <BallotShell className="gap-5">
+              <BallotShell className="gap-6 pt-9">
+                <span className="sh-caption absolute left-1/2 top-4 -translate-x-1/2 !text-[0.6rem] !tracking-[0.34em] !text-[var(--sh-gold)]">
+                  Admit one
+                </span>
                 <p className={cn(bodyReadout, "text-center")}>Once to enter the room — then your phone stays on this ballot.</p>
-                <div className="space-y-3">
-                  <Label htmlFor="jm-name" className={cn(finePrint, "font-semibold text-[var(--kc-champagne)]")}>
-                    Your name <span className="text-[color-mix(in_oklch,var(--kc-velvet)_55%,var(--kc-gold-bright))]">*</span>
-                  </Label>
-                  <Input
+                <div className="space-y-2.5">
+                  <label htmlFor="jm-name" className={fieldLabel}>
+                    Your name <span className="text-[var(--sh-red-hot)]">*</span>
+                  </label>
+                  <input
                     id="jm-name"
+                    className="sh-input"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     autoComplete="name"
-                    className="min-h-14 rounded-lg border-[color-mix(in_oklch,var(--kc-gold)_25%,transparent)] bg-black/60 text-[clamp(1.05rem,4vw,1.25rem)] text-[var(--kc-cream)] placeholder:text-[var(--kc-cream-dim)]"
                     placeholder="Name as it should appear"
                   />
                 </div>
-                <div className="space-y-3">
-                  <Label htmlFor="jm-table" className={cn(finePrint, "font-semibold text-[var(--kc-champagne)]")}>
-                    Table or seat <span className="font-normal text-[var(--kc-cream-dim)]">(optional)</span>
-                  </Label>
-                  <Input
+                <div className="space-y-2.5">
+                  <label htmlFor="jm-table" className={fieldLabel}>
+                    Table or seat <span className="normal-case tracking-normal opacity-70">(optional)</span>
+                  </label>
+                  <input
                     id="jm-table"
+                    className="sh-input"
                     value={table}
                     onChange={(e) => setTable(e.target.value)}
-                    className="min-h-14 rounded-lg border-[color-mix(in_oklch,var(--kc-gold)_25%,transparent)] bg-black/60 text-[clamp(1.05rem,4vw,1.25rem)] text-[var(--kc-cream)] placeholder:text-[var(--kc-cream-dim)]"
                     placeholder="e.g. 12"
                   />
                 </div>
                 {j.joinError ? (
-                  <p className="text-center text-[clamp(1rem,3.5vw,1.15rem)] font-medium text-[color-mix(in_oklch,var(--kc-velvet)_35%,var(--kc-cream))]">
+                  <p className={errorText} role="alert">
                     {j.joinError}
                   </p>
                 ) : null}
                 {localErr ? (
-                  <p className="text-center text-[clamp(1rem,3.5vw,1.15rem)] font-medium text-[color-mix(in_oklch,var(--kc-velvet)_35%,var(--kc-cream))]">
+                  <p className={errorText} role="alert">
                     {localErr}
                   </p>
                 ) : null}
               </BallotShell>
-              <Button
+              <button
                 type="button"
                 disabled={joining || !name.trim()}
-                className="mt-auto min-h-[min(4.25rem,18vw)] w-full rounded-lg border border-[color-mix(in_oklch,var(--kc-gold-bright)_45%,transparent)] bg-[color-mix(in_oklch,var(--kc-gold-bright)_14%,black)] py-6 text-[clamp(1.15rem,4.2vw,1.4rem)] font-bold tracking-wide text-[var(--kc-gold-bright)] transition-[filter,opacity,transform] duration-200 hover:bg-[color-mix(in_oklch,var(--kc-gold-bright)_18%,black)] active:translate-y-px disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50"
+                className="sh-btn sh-btn--red mt-auto min-h-[min(4.25rem,18vw)] w-full !text-[clamp(0.85rem,3.4vw,1rem)]"
                 onClick={() => void onJoin()}
               >
                 {joining ? "Entering…" : "Enter the room"}
-              </Button>
+              </button>
             </div>
           ) : null}
 
           {j.uiPhase === "waiting" || j.uiPhase === "host_locked" ? (
             <BallotShell className="my-auto flex flex-1 flex-col justify-center gap-6 text-center">
-              <p className={questionDisplay}>
-                {j.uiPhase === "host_locked" ? "Waiting for the host" : "Stand by"}
-              </p>
+              <p className={questionDisplay}>{j.uiPhase === "host_locked" ? "Waiting for the host" : "Stand by"}</p>
               <p className={bodyReadout}>
                 {j.uiPhase === "host_locked"
                   ? "Voting is closed on your phone. Watch the screen — the host will reveal the audience choice."
@@ -304,7 +377,7 @@ export function JoinMobileExperience({ eventCode }: Props) {
               </p>
               <button
                 type="button"
-                className={cn(finePrint, "mx-auto font-semibold text-[var(--kc-cream-dim)] underline decoration-[var(--kc-gold-line)] underline-offset-4")}
+                className={cn(finePrint, "mx-auto font-medium underline decoration-[var(--sh-line-strong)] underline-offset-4")}
                 onClick={() => {
                   j.leaveRoom();
                   setName("");
@@ -317,105 +390,79 @@ export function JoinMobileExperience({ eventCode }: Props) {
           ) : null}
 
           {j.uiPhase === "voting" ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
               {j.voteEligible ? (
-                <div
-                  className="kc-marquee-chase mx-auto shrink-0 rounded-full px-4 py-1"
+                <p
+                  className="sh-eyebrow inline-flex shrink-0 items-center justify-center gap-2.5 !text-[0.7rem] !text-[var(--sh-cream)]"
                   role="status"
                   aria-live="polite"
                   aria-label="Voting is open"
                 >
-                  <span className="text-[0.65rem] font-bold uppercase tracking-[0.28em] text-[var(--kc-gold-bright)]">
-                    Voting live
-                  </span>
-                </div>
+                  <LiveDot status="live" />
+                  Choose now
+                </p>
               ) : null}
               <p className={cn(questionDisplay, "shrink-0 text-center")}>{j.voteNode?.question?.trim() ?? "—"}</p>
+              {j.voteEligible ? <VoteClock endsAt={j.event?.vote_ends_at} /> : null}
               {!j.voteEligible && j.voteBlockReason ? (
                 <p
-                  className="shrink-0 rounded-md border border-[color-mix(in_oklch,var(--kc-velvet)_40%,transparent)] bg-[color-mix(in_oklch,var(--kc-velvet)_12%,black)] px-4 py-3 text-center text-[clamp(0.95rem,3.2vw,1.1rem)] font-semibold leading-snug text-[var(--kc-cream)]"
+                  className="shrink-0 rounded-[6px] border border-[var(--sh-red)]/50 bg-[var(--sh-red)]/12 px-4 py-3 text-center text-[clamp(0.95rem,3.3vw,1.1rem)] font-semibold leading-snug text-[var(--sh-cream)]"
                   role="alert"
                 >
                   {j.voteBlockReason}
                 </p>
               ) : null}
               {j.voteError && j.votePending ? (
-                <p
-                  className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-semibold text-[var(--kc-gold-bright)]"
-                  role="status"
-                  aria-live="polite"
-                >
+                <p className={cn(errorText, "shrink-0 !text-[var(--sh-cream)]")} role="status" aria-live="polite">
                   {j.voteError}
                 </p>
               ) : j.voteError ? (
-                <p className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-semibold text-[color-mix(in_oklch,var(--kc-velvet)_40%,var(--kc-cream))]">
+                <p className={cn(errorText, "shrink-0")}>
                   {j.voteError}{" "}
-                  <button type="button" className="text-[var(--kc-gold-bright)] underline underline-offset-2" onClick={j.clearVoteError}>
+                  <button type="button" className="text-[var(--sh-cream)] underline underline-offset-2" onClick={j.clearVoteError}>
                     Dismiss
                   </button>
                 </p>
               ) : null}
-              {dupHint ? (
-                <p className="shrink-0 text-center text-[clamp(1rem,3.5vw,1.15rem)] font-medium text-[var(--kc-gold-bright)]">{dupHint}</p>
-              ) : null}
+              {dupHint ? <p className={cn(errorText, "shrink-0 !text-[var(--sh-cream)]")}>{dupHint}</p> : null}
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5">
-                <button
-                  type="button"
+                <ChoiceButton
+                  letter="A"
+                  label={j.voteNode?.option_a_label?.trim() ?? "Option A"}
                   disabled={j.voteSubmitting || !j.voteEligible}
-                  className={cn(
-                    "flex min-h-[min(30vh,13rem)] flex-col items-center justify-center gap-4 rounded-lg border-2 border-[color-mix(in_oklch,var(--kc-velvet)_55%,var(--kc-gold)_35%)] bg-black/55 px-4 py-8 text-center shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-bright)_12%,transparent)] transition-[border-color,box-shadow,background-color,transform] duration-200 hover:border-[color-mix(in_oklch,var(--kc-velvet)_70%,var(--kc-gold-bright)_40%)] hover:bg-black/65 active:translate-y-px active:bg-[color-mix(in_oklch,var(--kc-velvet)_08%,black)] disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50 sm:min-h-[min(36vh,18rem)]",
-                  )}
                   onClick={() => void onVote("A")}
-                >
-                  <span className="text-[clamp(0.85rem,3vw,1rem)] font-bold uppercase tracking-[0.28em] text-[color-mix(in_oklch,var(--kc-velvet)_55%,var(--kc-gold-bright))]">
-                    Option A
-                  </span>
-                  <span className="max-w-[18ch] text-[clamp(1.35rem,5.5vw,2.1rem)] font-semibold leading-tight text-[var(--kc-cream)] text-balance">
-                    {j.voteNode?.option_a_label?.trim() ?? "Option A"}
-                  </span>
-                </button>
-                <button
-                  type="button"
+                />
+                <ChoiceButton
+                  letter="B"
+                  label={j.voteNode?.option_b_label?.trim() ?? "Option B"}
                   disabled={j.voteSubmitting || !j.voteEligible}
-                  className={cn(
-                    "flex min-h-[min(30vh,13rem)] flex-col items-center justify-center gap-4 rounded-lg border-2 border-[color-mix(in_oklch,var(--kc-gold-bright)_55%,transparent)] bg-black/55 px-4 py-8 text-center shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--kc-gold-bright)_15%,transparent)] transition-[border-color,box-shadow,background-color,transform] duration-200 hover:border-[color-mix(in_oklch,var(--kc-gold-bright)_75%,transparent)] hover:bg-black/65 active:translate-y-px active:bg-[color-mix(in_oklch,var(--kc-gold-bright)_08%,black)] disabled:pointer-events-none disabled:opacity-[0.38] disabled:saturate-50 sm:min-h-[min(36vh,18rem)]",
-                  )}
                   onClick={() => void onVote("B")}
-                >
-                  <span className="text-[clamp(0.85rem,3vw,1rem)] font-bold uppercase tracking-[0.28em] text-[var(--kc-gold-bright)]">
-                    Option B
-                  </span>
-                  <span className="max-w-[18ch] text-[clamp(1.35rem,5.5vw,2.1rem)] font-semibold leading-tight text-[var(--kc-cream)] text-balance">
-                    {j.voteNode?.option_b_label?.trim() ?? "Option B"}
-                  </span>
-                </button>
+                />
               </div>
             </div>
           ) : null}
 
           {j.uiPhase === "vote_received" ? (
-            <BallotShell className="my-auto flex flex-1 flex-col justify-center gap-8 text-center">
-              <div className="mx-auto flex size-[min(22vw,5.5rem)] items-center justify-center rounded-full border-2 border-[var(--kc-gold-bright)] text-[clamp(2.5rem,12vw,4rem)] text-[var(--kc-gold-bright)]">
-                ✓
-              </div>
-              <p className={cn(questionDisplay, "text-[var(--kc-gold-bright)]")}>Ballot received</p>
+            <BallotShell className="my-auto flex flex-1 flex-col items-center justify-center gap-7 text-center">
+              <ShowtimeSymbol className="sh-symbol-in size-[min(30vw,7.5rem)]" title="Vote received" />
+              <p className={questionDisplay}>
+                Ballot received<span className="sh-accent">.</span>
+              </p>
               <p className={bodyReadout}>Your choice is on record. Watch the screen for the reveal.</p>
-              {dupHint ? <p className={cn(finePrint, "font-semibold text-[color-mix(in_oklch,var(--kc-velvet)_35%,var(--kc-gold-bright))]")}>{dupHint}</p> : null}
+              {dupHint ? <p className={cn(finePrint, "font-semibold text-[var(--sh-cream)]")}>{dupHint}</p> : null}
             </BallotShell>
           ) : null}
 
           {j.uiPhase === "results" ? (
             <BallotShell className="my-auto flex flex-1 flex-col justify-center gap-6 text-center">
-              <p className="text-[clamp(0.85rem,3vw,1rem)] font-bold uppercase tracking-[0.3em] text-[var(--kc-gold-bright)]">The house has chosen</p>
-              <p className={cn(questionDisplay, "text-[var(--kc-cream)]")}>
-                {j.winnerLabel ?? (j.event?.winner ? `Option ${j.event.winner}` : "—")}
-              </p>
+              <p className="sh-eyebrow !text-[0.75rem] !text-[var(--sh-red-hot)]">The house has chosen</p>
+              <p className={questionDisplay}>{j.winnerLabel ?? (j.event?.winner ? `Option ${j.event.winner}` : "—")}</p>
               <p className={bodyReadout}>Stay on this page — the next ballot will open when the host is ready.</p>
             </BallotShell>
           ) : null}
         </main>
       </div>
       {debugFooter}
-    </div>
+    </Stage>
   );
 }

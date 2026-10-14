@@ -1016,3 +1016,97 @@ html.showtime.dark {
   text-transform: uppercase;
   white-space: nowrap;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEATRE MARQUEE — the poster hangs in a red-velvet sign ringed with chasing bulbs
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sh-marquee {
+  --b: 1.6rem; /* bulb pitch */
+  --m: 1.15rem; /* bulb band width */
+  --bulb-stops: #fffbe6 0 22%, rgb(255 218 128 / 0.95) 36%, rgb(255 170 60 / 0.32) 58%, transparent 78%;
+  position: relative;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  flex-direction: column;
+  padding: calc(var(--m) + 0.95rem);
+  border: 2px solid var(--sh-gold);
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgb(214 40 40 / 0.35), transparent 70%),
+    linear-gradient(180deg, #5c0f0f 0%, #2a0707 100%);
+  box-shadow:
+    0 0 0 5px var(--sh-black),
+    0 0 0 6px rgb(201 169 106 / 0.5),
+    0 34px 100px -24px rgb(214 40 40 / 0.55),
+    inset 0 0 70px rgb(0 0 0 / 0.6);
+}
+
+/* Two interleaved sets of bulbs that blink in opposition — the classic marquee chase */
+.sh-marquee::before,
+.sh-marquee::after {
+  content: "";
+  position: absolute;
+  inset: 0.5rem;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgb(255 190 80 / 0.75));
+  animation: sh-bulbs 1.1s steps(1, end) infinite;
+}
+
+.sh-marquee::before {
+  background:
+    radial-gradient(circle closest-side at 25% 50%, var(--bulb-stops)) top left / calc(var(--b) * 2) var(--m) space no-repeat,
+    radial-gradient(circle closest-side at 25% 50%, var(--bulb-stops)) bottom left / calc(var(--b) * 2) var(--m) space no-repeat,
+    radial-gradient(circle closest-side at 50% 25%, var(--bulb-stops)) top left / var(--m) calc(var(--b) * 2) no-repeat space,
+    radial-gradient(circle closest-side at 50% 25%, var(--bulb-stops)) top right / var(--m) calc(var(--b) * 2) no-repeat space;
+}
+
+.sh-marquee::after {
+  animation-delay: -0.55s;
+  background:
+    radial-gradient(circle closest-side at 75% 50%, var(--bulb-stops)) top left / calc(var(--b) * 2) var(--m) space no-repeat,
+    radial-gradient(circle closest-side at 75% 50%, var(--bulb-stops)) bottom left / calc(var(--b) * 2) var(--m) space no-repeat,
+    radial-gradient(circle closest-side at 50% 75%, var(--bulb-stops)) top left / var(--m) calc(var(--b) * 2) no-repeat space,
+    radial-gradient(circle closest-side at 50% 75%, var(--bulb-stops)) top right / var(--m) calc(var(--b) * 2) no-repeat space;
+}
+
+@keyframes sh-bulbs {
+  0%,
+  49.9% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0.22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sh-marquee::before,
+  .sh-marquee::after {
+    animation: none;
+    opacity: 0.95;
+  }
+}
+
+/* The title plate across the top of the sign */
+.sh-marquee__plate {
+  margin-bottom: 0.9rem;
+  padding: 0.7rem 1rem 0.8rem;
+  text-align: center;
+  border: 1px solid rgb(201 169 106 / 0.55);
+  background: linear-gradient(180deg, #14100f, #080707);
+  box-shadow: inset 0 0 0 3px #080707, inset 0 0 0 4px rgb(201 169 106 / 0.18);
+}
+
+/* The poster window */
+.sh-marquee__screen {
+  position: relative;
+  line-height: 0;
+  border: 2px solid var(--sh-gold);
+  background: #000;
+  box-shadow:
+    0 0 0 5px rgb(0 0 0 / 0.65),
+    inset 0 0 40px rgb(0 0 0 / 0.8);
+}

@@ -201,6 +201,79 @@ function ChoiceGrid({
 
 /* ── Slides ─────────────────────────────────────────────────────────────────── */
 
+/** Poster in a theatre marquee: bulb-ringed red-velvet sign with a title plate across the top. */
+function MarqueePoster({
+  posterUrl,
+  title,
+}: {
+  posterUrl: string;
+  title: string;
+}) {
+  return (
+    <div className="sh-marquee sh-rise" style={stagger(0.1)}>
+      <div className="sh-marquee__plate">
+        <p className={cn(kicker, "!text-[var(--sh-gold)]")}>
+          Now showing
+        </p>
+        <h1 className="sh-display mt-[0.35em] text-[clamp(1.5rem,min(3.3vw,6vh),3.5rem)]">
+          {title}
+        </h1>
+      </div>
+      <div className="sh-marquee__screen">
+        {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL, any aspect ratio */}
+        <img
+          src={posterUrl}
+          alt=""
+          draggable={false}
+          className="block h-auto max-h-[min(62vh,calc(100vh-20rem),52rem)] w-auto max-w-full"
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Admission-ticket stub with the scan-to-join code. */
+function JoinTicket({
+  joinUrl,
+  code,
+  joinHost,
+}: {
+  joinUrl: string;
+  code: string;
+  joinHost: string;
+}) {
+  return (
+    <div
+      className="sh-ticket sh-rise mx-auto flex w-full max-w-[24rem] flex-col items-center px-[clamp(1rem,1.6vw,1.5rem)] pb-[clamp(1rem,2.4vh,1.75rem)] pt-[clamp(2.25rem,4.4vh,3rem)] text-center"
+      style={stagger(0.5)}
+    >
+      <span className="sh-caption absolute left-1/2 top-[clamp(0.7rem,1.6vh,1rem)] -translate-x-1/2 !text-[0.62rem] !tracking-[0.34em] !text-[var(--sh-gold)]">
+        Admit one
+      </span>
+      <p className={kicker}>Scan to join</p>
+      {joinUrl ? (
+        <JoinQr
+          url={joinUrl}
+          className="mt-[clamp(0.6rem,1.6vh,1rem)] w-full max-w-[min(100%,16rem)]"
+        />
+      ) : null}
+      <p
+        className={cn(
+          codeType,
+          "mt-[clamp(0.6rem,1.8vh,1.25rem)] text-[clamp(1.4rem,min(2.6vw,5vh),2.75rem)]",
+        )}
+      >
+        {code}
+      </p>
+      {joinHost ? (
+        <p className={cn(caption, "mt-2 normal-case !tracking-[0.08em]")}>
+          {joinHost}/join
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function LobbySlide({
   title,
   code,
@@ -212,7 +285,6 @@ export function LobbySlide({
   posterUrl: string | null;
   joinUrl: string;
 }) {
-  const hasPoster = Boolean(posterUrl);
   let joinHost = "";
   try {
     joinHost = joinUrl ? new URL(joinUrl).host : "";
@@ -220,88 +292,59 @@ export function LobbySlide({
     joinHost = "";
   }
 
+  if (posterUrl) {
+    return (
+      <Slide className="max-w-[120rem]">
+        <div className="grid w-full items-center gap-[clamp(1.25rem,3vw,3.5rem)] md:grid-cols-[minmax(0,1fr)_clamp(13rem,21vw,22rem)]">
+          <div className="flex min-w-0 justify-center">
+            <MarqueePoster posterUrl={posterUrl} title={title} />
+          </div>
+          <div className="flex flex-col items-center">
+            <JoinTicket joinUrl={joinUrl} code={code} joinHost={joinHost} />
+            <Signature />
+          </div>
+        </div>
+      </Slide>
+    );
+  }
+
   return (
     <Slide>
-      <div
-        className={cn(
-          "flex w-full flex-col items-center justify-center gap-[clamp(1.25rem,4vh,3rem)]",
-          hasPoster && "md:flex-row md:gap-[clamp(2rem,5vw,6rem)]",
-        )}
+      <p className={cn(kicker, "sh-rise")} style={stagger(0.2)}>
+        Kasdan Showtime presents
+      </p>
+      <h1
+        className={cn(titleType, "sh-rise mt-[clamp(0.75rem,2vh,1.5rem)]")}
+        style={stagger(0.3)}
       >
-        {hasPoster ? (
-          <div
-            className="sh-rise relative flex max-h-[min(66vh,52rem)] shrink-0 items-center justify-center"
-            style={stagger(0.1)}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic show asset URL, any aspect ratio */}
-            <img
-              src={posterUrl!}
-              alt=""
-              draggable={false}
-              className="max-h-[min(66vh,52rem)] w-auto max-w-[min(42vw,100%)] object-contain max-md:max-w-full"
-              style={{
-                maskImage:
-                  "radial-gradient(ellipse 90% 90% at 50% 50%, black 78%, transparent 100%)",
-                WebkitMaskImage:
-                  "radial-gradient(ellipse 90% 90% at 50% 50%, black 78%, transparent 100%)",
-              }}
-            />
-          </div>
-        ) : null}
-
-        <div
-          className={cn(
-            "flex min-w-0 flex-col items-center",
-            hasPoster && "md:items-start md:text-left",
-          )}
-        >
-          <p className={cn(kicker, "sh-rise")} style={stagger(0.2)}>
-            Kasdan Showtime presents
-          </p>
-          <h1
-            className={cn(titleType, "sh-rise mt-[clamp(0.75rem,2vh,1.5rem)]")}
-            style={stagger(0.3)}
-          >
-            {title}
-          </h1>
-          <RedRule
-            center={!hasPoster}
-            delay={0.8}
-            className="mt-[clamp(1rem,2.6vh,1.75rem)]"
+        {title}
+      </h1>
+      <RedRule center delay={0.8} className="mt-[clamp(1rem,2.6vh,1.75rem)]" />
+      <div
+        className="sh-rise mt-[clamp(1.25rem,3.6vh,2.5rem)] flex items-center justify-center gap-[clamp(1rem,2.2vw,2rem)]"
+        style={stagger(1)}
+      >
+        {joinUrl ? (
+          <JoinQr
+            url={joinUrl}
+            className="w-[clamp(7rem,min(15vw,25vh),14rem)] shrink-0"
           />
-
-          <div
+        ) : null}
+        <div className="flex flex-col items-start text-left">
+          <p className={kicker}>Scan to join</p>
+          <p
             className={cn(
-              "sh-rise mt-[clamp(1.25rem,3.6vh,2.5rem)] flex items-center gap-[clamp(1rem,2.2vw,2rem)]",
-              hasPoster ? "justify-center md:justify-start" : "justify-center",
+              codeType,
+              "mt-2 text-[clamp(1.4rem,min(3.4vw,6vh),3.25rem)]",
             )}
-            style={stagger(1)}
           >
-            {joinUrl ? (
-              <JoinQr
-                url={joinUrl}
-                className="w-[clamp(7rem,min(15vw,25vh),14rem)] shrink-0"
-              />
-            ) : null}
-            <div className="flex flex-col items-start text-left">
-              <p className={kicker}>Scan to join</p>
-              <p
-                className={cn(
-                  codeType,
-                  "mt-2 text-[clamp(1.4rem,min(3.4vw,6vh),3.25rem)]",
-                )}
-              >
-                {code}
-              </p>
-              {joinHost ? (
-                <p
-                  className={cn(caption, "mt-2 normal-case !tracking-[0.1em]")}
-                >
-                  {joinHost}/join
-                </p>
-              ) : null}
-            </div>
-          </div>
+            {code}
+          </p>
+          {joinHost ? (
+            <p className={cn(caption, "mt-2 normal-case !tracking-[0.1em]")}>
+              {joinHost}/join
+            </p>
+          ) : null}
         </div>
       </div>
       <Signature />

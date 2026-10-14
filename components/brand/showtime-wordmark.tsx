@@ -37,15 +37,28 @@ export function ShowtimeWordmark({ className, tone = "onDark", decorative = fals
 type LockupProps = WordmarkProps & {
   /** Show "THE STORY IS OURS." beneath the wordmark. */
   tagline?: boolean;
+  /** Show "KASDAN" tracked out above the wordmark — the studio lockup from the title sequence. */
+  studio?: boolean;
 };
 
 /**
  * Wordmark + tagline, stacked and centred — the brand's primary logo lockup.
  * The tagline is sized in `em`, so it keeps its proportion to the wordmark at any size.
  */
-export function ShowtimeLockup({ className, tone = "onDark", tagline = true, decorative = false }: LockupProps) {
+export function ShowtimeLockup({
+  className,
+  tone = "onDark",
+  tagline = true,
+  studio = false,
+  decorative = false,
+}: LockupProps) {
   return (
     <span className={cn("inline-flex flex-col items-center", className)}>
+      {studio ? (
+        <span className={cn("sh-studio", tone === "onLight" ? "text-[var(--sh-black)]" : "text-[var(--sh-cream)]")}>
+          Kasdan
+        </span>
+      ) : null}
       <ShowtimeWordmark tone={tone} decorative={decorative} />
       {tagline ? (
         <span className={cn("sh-tagline", tone === "onLight" ? "text-[var(--sh-black)]" : "text-[var(--sh-cream)]")}>

@@ -72,7 +72,7 @@ function Slide({
 }
 
 /** Small lockup that signs off slates the way the brand's title cards do. */
-function Signature({ className }: { className?: string }) {
+function Signature({ className, large = false }: { className?: string; large?: boolean }) {
   return (
     <div
       className={cn(
@@ -81,7 +81,14 @@ function Signature({ className }: { className?: string }) {
       )}
       style={stagger(0.6)}
     >
-      <ShowtimeLockup className="text-[clamp(1.1rem,2.1vw,2rem)]" />
+      <ShowtimeLockup
+        studio
+        className={
+          large
+            ? "text-[clamp(2.75rem,min(6.4vw,11vh),6.5rem)]"
+            : "text-[clamp(1.1rem,2.1vw,2rem)]"
+        }
+      />
     </div>
   );
 }
@@ -603,7 +610,7 @@ export function RevealSlide({
 export function EndSlide({ code }: { code?: string }) {
   return (
     <Slide>
-      <h1 className="sh-display sh-rise text-[clamp(3.5rem,min(13vw,22vh),14rem)]">
+      <h1 className="sh-display sh-rise text-[clamp(3rem,min(10.5vw,18vh),11rem)]">
         The end<span className="sh-accent">.</span>
       </h1>
       <RedRule center delay={0.8} className="mt-[clamp(1rem,3vh,2rem)]" />
@@ -624,7 +631,7 @@ export function EndSlide({ code }: { code?: string }) {
           {code}
         </p>
       ) : null}
-      <Signature />
+      <Signature large className="mt-[clamp(1.5rem,5.5vh,4rem)]" />
     </Slide>
   );
 }

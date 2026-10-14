@@ -1003,6 +1003,20 @@ html.showtime.dark {
   cursor: not-allowed;
 }
 
+/* Studio name above the wordmark ("KASDAN" in the title sequence) — em-sized like the tagline */
+.sh-studio {
+  display: block;
+  margin-bottom: 0.2em;
+  padding-left: 0.6em; /* balances trailing letter-spacing */
+  font-family: var(--sh-ui);
+  font-weight: 300;
+  font-size: 0.34em;
+  line-height: 1;
+  letter-spacing: 0.6em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* Tagline lockup under the wordmark — sized in em so it holds proportion at any wordmark size */
 .sh-tagline {
   display: block;

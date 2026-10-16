@@ -45,13 +45,13 @@ export default function GatePage() {
 
       <main className="relative z-10 flex w-full max-w-xl flex-col items-center text-center">
         <div className="sh-rise" style={{ "--d": "0.5s" } as React.CSSProperties}>
-          <ShowtimeLockup className="text-[clamp(3.1rem,11.5vw,8.25rem)]" />
+          <ShowtimeLockup studio className="text-[clamp(3.1rem,11.5vw,8.25rem)]" />
         </div>
 
         <RedRule center delay={1.5} className="mt-7" />
 
         <p className="sh-eyebrow sh-rise mt-6" style={{ "--d": "1.7s" } as React.CSSProperties}>
-          Kasdan Showtime · Operator access
+          Operator access
         </p>
 
         <form
